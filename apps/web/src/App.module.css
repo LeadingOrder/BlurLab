@@ -159,6 +159,7 @@
 .preset:focus-visible,
 .segmentedControl button:focus-visible,
 .viewSwitch button:focus-visible,
+.comparisonSlider:focus-visible,
 .mobileNavigation button:focus-visible {
     z-index: 1;
     outline: none;
@@ -285,6 +286,22 @@
     background: rgba(3, 3, 5, 0.55);
 }
 
+.comparisonMode {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--blurlab-color-ink-muted);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.comparisonMode span:nth-child(2) {
+    color: var(--blurlab-color-primary);
+    text-shadow: 0 0 10px rgba(124, 92, 255, 0.9);
+}
+
 .viewSwitch button,
 .segmentedControl button {
     min-height: 30px;
@@ -324,6 +341,196 @@
     z-index: 1;
     inset: 0;
     display: block;
+}
+
+.comparisonSlider {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    cursor: ew-resize;
+    outline: none;
+    touch-action: none;
+}
+
+.comparisonSlider:focus-visible {
+    box-shadow: inset 0 0 0 2px rgba(124, 92, 255, 0.86);
+}
+
+.originalLabel,
+.resultLabel {
+    position: absolute;
+    top: 14px;
+    padding: 6px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 7px;
+    color: var(--blurlab-color-ink);
+    background: rgba(3, 3, 5, 0.68);
+    box-shadow: var(--blurlab-shadow-subtle);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    text-transform: uppercase;
+}
+
+.originalLabel {
+    left: 14px;
+}
+
+.resultLabel {
+    right: 14px;
+    color: var(--blurlab-color-frequency);
+    text-shadow: 0 0 10px rgba(46, 235, 255, 0.75);
+}
+
+.comparisonDivider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--divider-position);
+    width: 2px;
+    background: var(--blurlab-color-frequency);
+    box-shadow:
+        0 0 7px rgba(46, 235, 255, 0.95),
+        0 0 18px rgba(46, 235, 255, 0.55);
+    pointer-events: none;
+    transform: translateX(-1px);
+}
+
+.comparisonDivider::before {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(46, 235, 255, 0.9);
+    border-radius: 50%;
+    background: rgba(5, 11, 16, 0.88);
+    box-shadow:
+        inset 0 0 15px rgba(46, 235, 255, 0.12),
+        0 0 20px rgba(46, 235, 255, 0.45);
+    content: "";
+    transform: translate(-50%, -50%);
+}
+
+.comparisonDivider > span {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    color: var(--blurlab-color-frequency);
+    font-size: 20px;
+    line-height: 1;
+    text-shadow: 0 0 8px rgba(46, 235, 255, 0.9);
+    transform: translateY(-53%);
+}
+
+.comparisonDivider > span:first-child {
+    right: 5px;
+}
+
+.comparisonDivider > span:last-child {
+    left: 5px;
+}
+
+.processingOverlay {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.processingSweep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 18%;
+    border-right: 1px solid rgba(46, 235, 255, 0.85);
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(124, 92, 255, 0.08) 28%,
+            rgba(46, 235, 255, 0.2) 78%,
+            rgba(46, 235, 255, 0.32)
+        );
+    box-shadow:
+        8px 0 24px rgba(46, 235, 255, 0.16),
+        2px 0 9px rgba(46, 235, 255, 0.42);
+    animation: kernel-sweep 1.35s linear infinite;
+    mix-blend-mode: screen;
+    transform: translateX(-110%);
+}
+
+.processingStatus,
+.processingError {
+    position: absolute;
+    bottom: 52px;
+    left: 50%;
+    border: 1px solid rgba(46, 235, 255, 0.28);
+    border-radius: 999px;
+    color: var(--blurlab-color-ink);
+    background: rgba(3, 3, 5, 0.82);
+    box-shadow:
+        var(--blurlab-shadow-subtle),
+        0 0 20px rgba(46, 235, 255, 0.13);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    transform: translateX(-50%);
+}
+
+.processingStatus {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    text-transform: uppercase;
+}
+
+.processingStatus > span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--blurlab-color-frequency);
+    box-shadow: 0 0 10px rgba(46, 235, 255, 0.95);
+    animation: kernel-pulse 0.8s ease-in-out infinite alternate;
+}
+
+.processingError {
+    z-index: 4;
+    max-width: min(420px, calc(100% - 36px));
+    padding: 9px 13px;
+    border-color: rgba(255, 59, 212, 0.38);
+    color: var(--blurlab-color-spatial-strong);
+    text-align: center;
+    box-shadow:
+        var(--blurlab-shadow-subtle),
+        0 0 20px rgba(255, 59, 212, 0.14);
+}
+
+@keyframes kernel-sweep {
+    from {
+        transform: translateX(-110%);
+    }
+
+    to {
+        transform: translateX(660%);
+    }
+}
+
+@keyframes kernel-pulse {
+    from {
+        opacity: 0.45;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1.15);
+    }
 }
 
 .imageStage[data-has-image="true"] .stageCanvas::before,
@@ -653,6 +860,87 @@
 .segmentedControl button[data-active="true"] {
     color: var(--blurlab-color-selected);
     background: var(--blurlab-color-selected-background-strong);
+}
+
+.segmentedControl button:disabled {
+    color: var(--blurlab-color-ink-disabled);
+    cursor: not-allowed;
+}
+
+.radiusControl {
+    margin-top: 13px;
+    padding-top: 12px;
+    border-top: 1px solid var(--blurlab-color-line);
+}
+
+.radiusReadout,
+.radiusScale {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.radiusReadout {
+    margin-bottom: 10px;
+}
+
+.radiusReadout span,
+.radiusScale {
+    color: var(--blurlab-color-ink-muted);
+    font-size: 9px;
+}
+
+.radiusReadout strong {
+    color: var(--blurlab-color-primary);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 11px;
+    text-shadow: 0 0 10px rgba(124, 92, 255, 0.75);
+}
+
+.radiusControl input[type="range"] {
+    width: 100%;
+    height: 4px;
+    margin: 5px 0 8px;
+    appearance: none;
+    border-radius: 999px;
+    background:
+        linear-gradient(
+            90deg,
+            var(--blurlab-color-primary),
+            var(--blurlab-color-frequency)
+        );
+    box-shadow: 0 0 11px rgba(124, 92, 255, 0.35);
+    cursor: pointer;
+}
+
+.radiusControl input[type="range"]::-webkit-slider-thumb {
+    width: 17px;
+    height: 17px;
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: 50%;
+    background: var(--blurlab-color-primary);
+    box-shadow:
+        0 0 0 3px rgba(124, 92, 255, 0.18),
+        0 0 13px rgba(124, 92, 255, 0.78);
+}
+
+.radiusControl input[type="range"]::-moz-range-thumb {
+    width: 17px;
+    height: 17px;
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: 50%;
+    background: var(--blurlab-color-primary);
+    box-shadow:
+        0 0 0 3px rgba(124, 92, 255, 0.18),
+        0 0 13px rgba(124, 92, 255, 0.78);
+}
+
+.pendingParameter {
+    margin: 10px 0 0;
+    color: var(--blurlab-color-ink-muted);
+    font-size: 9px;
+    line-height: 1.45;
 }
 
 .formulaCard {
@@ -1298,5 +1586,10 @@
     .stageOpenButton,
     .preset {
         transition: none;
+    }
+
+    .processingSweep,
+    .processingStatus > span {
+        animation: none;
     }
 }

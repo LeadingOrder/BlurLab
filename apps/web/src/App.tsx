@@ -1,15 +1,34 @@
 import {
+    useCallback,
     useEffect,
     useRef,
     useState,
     type ChangeEvent,
     type CSSProperties,
+    type KeyboardEvent,
+    type PointerEvent,
     type ReactNode,
 } from "react";
 
+import {
+    boxBlur3x3Kernel,
+    horizontalNeighbourBlurKernel,
+    type Kernel,
+    type PixelBuffer,
+} from "@blurlab/engine";
+
 import styles from "./App.module.css";
+import type {
+    BlurWorkerRequest,
+    BlurWorkerResponse,
+} from "./blurWorkerProtocol";
+import {
+    decodeImageFile,
+    pixelBufferToCanvas,
+} from "./imagePipeline";
 
 type MobilePanel = "blur" | "kernel" | "pixels" | "fourier";
+type BlurPresetId = "neighbour" | "box";
 
 type ImageMetadata = {
     name: string;
@@ -18,25 +37,45 @@ type ImageMetadata = {
     size: number;
 };
 
-const presets = [
-    "Original",
-    "Neighbour",
-    "Cross",
-    "Box",
-    "Weighted",
-    "Gaussian",
-] as const;
+type BlurPreset = {
+    id: BlurPresetId;
+    label: string;
+    kernel: Kernel;
+    direction: string;
+    description: string;
+};
+
+const presets: readonly BlurPreset[] = [
+    {
+        id: "neighbour",
+        label: "Neighbour",
+        kernel: horizontalNeighbourBlurKernel,
+        direction: "Horizontal",
+        description: "Each output mixes one pixel with its right-hand neighbour.",
+    },
+    {
+        id: "box",
+        label: "Box",
+        kernel: boxBlur3x3Kernel,
+        direction: "Both axes",
+        description: "Each output is the equal-weight average of a 3 × 3 neighbourhood.",
+    },
+];
+
+function getPreset(id: BlurPresetId): BlurPreset {
+    return presets.find((preset) => preset.id === id)!;
+}
 
 const mobilePanels: {
     id: MobilePanel;
     label: string;
     index: string;
 }[] = [
-    { id: "blur", label: "Blur", index: "01" },
-    { id: "kernel", label: "Kernel", index: "02" },
-    { id: "pixels", label: "Pixels", index: "03" },
-    { id: "fourier", label: "Fourier", index: "04" },
-];
+        { id: "blur", label: "Blur", index: "01" },
+        { id: "kernel", label: "Kernel", index: "02" },
+        { id: "pixels", label: "Pixels", index: "03" },
+        { id: "fourier", label: "Fourier", index: "04" },
+    ];
 
 function PanelHeading({
     eyebrow,
@@ -114,9 +153,11 @@ function TopBar({
     );
 }
 
-function drawFittedImage(
+function drawFittedComparison(
     canvas: HTMLCanvasElement,
-    image: HTMLImageElement,
+    originalRaster: HTMLCanvasElement,
+    resultRaster: HTMLCanvasElement,
+    dividerPercentage: number,
 ) {
     const bounds = canvas.parentElement?.getBoundingClientRect();
 
@@ -146,21 +187,41 @@ function drawFittedImage(
 
     const inset = Math.min(40, width * 0.06, height * 0.06);
     const scale = Math.min(
-        (width - inset * 2) / image.naturalWidth,
-        (height - inset * 2) / image.naturalHeight,
+        (width - inset * 2) / originalRaster.width,
+        (height - inset * 2) / originalRaster.height,
     );
-    const renderedWidth = image.naturalWidth * scale;
-    const renderedHeight = image.naturalHeight * scale;
+    const renderedWidth = originalRaster.width * scale;
+    const renderedHeight = originalRaster.height * scale;
     const x = (width - renderedWidth) / 2;
     const y = (height - renderedHeight) / 2;
 
     context.drawImage(
-        image,
+        originalRaster,
         x,
         y,
         renderedWidth,
         renderedHeight,
     );
+
+    const dividerX = width * dividerPercentage / 100;
+
+    context.save();
+    context.beginPath();
+    context.rect(
+        dividerX,
+        0,
+        width - dividerX,
+        height,
+    );
+    context.clip();
+    context.drawImage(
+        resultRaster,
+        x,
+        y,
+        renderedWidth,
+        renderedHeight,
+    );
+    context.restore();
 }
 
 function clearCanvas(canvas: HTMLCanvasElement) {
@@ -172,87 +233,145 @@ function clearCanvas(canvas: HTMLCanvasElement) {
 }
 
 function ImageStage({
-    file,
+    sourceBuffer,
+    resultBuffer,
+    metadata,
+    loadError,
+    isProcessing,
+    processingError,
+    processingLabel,
     onOpenImage,
 }: {
-    file: File | null;
+    sourceBuffer: PixelBuffer | null;
+    resultBuffer: PixelBuffer | null;
+    metadata: ImageMetadata | null;
+    loadError: boolean;
+    isProcessing: boolean;
+    processingError: string | null;
+    processingLabel: string;
     onOpenImage: () => void;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const imageRef = useRef<HTMLImageElement | null>(null);
-    const [metadata, setMetadata] = useState<ImageMetadata | null>(null);
-    const [loadError, setLoadError] = useState(false);
+    const originalRasterRef = useRef<HTMLCanvasElement | null>(null);
+    const resultRasterRef = useRef<HTMLCanvasElement | null>(null);
+    const dividerPercentageRef = useRef(50);
+    const [dividerPercentage, setDividerPercentage] = useState(50);
 
-    useEffect(() => {
+    const drawCurrentComparison = useCallback(() => {
         const canvas = canvasRef.current;
-
-        if (file === null) {
-            imageRef.current = null;
-
-            if (canvas !== null) {
-                clearCanvas(canvas);
-            }
-
-            return;
-        }
-
-        const sourceUrl = URL.createObjectURL(file);
-        const image = new Image();
-
-        image.onload = () => {
-            imageRef.current = image;
-            setMetadata({
-                name: file.name,
-                width: image.naturalWidth,
-                height: image.naturalHeight,
-                size: file.size,
-            });
-
-            if (canvasRef.current !== null) {
-                drawFittedImage(canvasRef.current, image);
-            }
-        };
-        image.onerror = () => {
-            imageRef.current = null;
-            setMetadata(null);
-            setLoadError(true);
-        };
-        image.src = sourceUrl;
-
-        return () => {
-            image.onload = null;
-            image.onerror = null;
-            URL.revokeObjectURL(sourceUrl);
-        };
-    }, [file]);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const container = canvas?.parentElement;
+        const originalRaster = originalRasterRef.current;
+        const resultRaster = resultRasterRef.current;
 
         if (
             canvas === null ||
-            container === null ||
-            container === undefined
+            originalRaster === null ||
+            resultRaster === null
         ) {
             return;
         }
 
-        const observer = new ResizeObserver(() => {
-            if (imageRef.current !== null) {
-                drawFittedImage(canvas, imageRef.current);
-            }
-        });
+        drawFittedComparison(
+            canvas,
+            originalRaster,
+            resultRaster,
+            dividerPercentageRef.current,
+        );
+    }, []);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+
+        if (canvas === null) {
+            return;
+        }
+
+        if (sourceBuffer === null) {
+            originalRasterRef.current = null;
+            resultRasterRef.current = null;
+            clearCanvas(canvas);
+            return;
+        }
+
+        const originalRaster = pixelBufferToCanvas(sourceBuffer);
+
+        originalRasterRef.current = originalRaster;
+        resultRasterRef.current =
+            resultBuffer === null
+                ? originalRaster
+                : pixelBufferToCanvas(resultBuffer);
+        drawCurrentComparison();
+    }, [drawCurrentComparison, resultBuffer, sourceBuffer]);
+
+    useEffect(() => {
+        dividerPercentageRef.current = dividerPercentage;
+        drawCurrentComparison();
+    }, [dividerPercentage, drawCurrentComparison]);
+
+    useEffect(() => {
+        const container = canvasRef.current?.parentElement;
+
+        if (container === null || container === undefined) {
+            return;
+        }
+
+        const observer = new ResizeObserver(drawCurrentComparison);
 
         observer.observe(container);
         return () => observer.disconnect();
-    }, []);
+    }, [drawCurrentComparison]);
 
-    const hasImage = metadata !== null;
+    const hasImage = sourceBuffer !== null && metadata !== null;
     const sizeInMegabytes =
         metadata === null
             ? null
             : `${(metadata.size / 1_000_000).toFixed(1)} MB`;
+
+    const updateDividerFromPointer = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const percentage =
+            100 * (event.clientX - bounds.left) / bounds.width;
+
+        setDividerPercentage(
+            Math.min(100, Math.max(0, percentage)),
+        );
+    };
+
+    const handleDividerPointerDown = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        updateDividerFromPointer(event);
+    };
+
+    const handleDividerPointerMove = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            updateDividerFromPointer(event);
+        }
+    };
+
+    const handleDividerKeyDown = (
+        event: KeyboardEvent<HTMLDivElement>,
+    ) => {
+        const step = event.shiftKey ? 10 : 2;
+
+        if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            setDividerPercentage((value) => Math.max(0, value - step));
+        } else if (event.key === "ArrowRight") {
+            event.preventDefault();
+            setDividerPercentage((value) => Math.min(100, value + step));
+        } else if (event.key === "Home") {
+            event.preventDefault();
+            setDividerPercentage(0);
+        } else if (event.key === "End") {
+            event.preventDefault();
+            setDividerPercentage(100);
+        }
+    };
 
     return (
         <section
@@ -267,17 +386,10 @@ function ImageStage({
                         {metadata?.name ?? "Image stage"}
                     </span>
                 </div>
-                <div className={styles.viewSwitch} aria-label="Image view">
-                    <button type="button" disabled>
-                        Result
-                    </button>
-                    <button
-                        type="button"
-                        data-active="true"
-                        aria-pressed="true"
-                    >
-                        Original
-                    </button>
+                <div className={styles.comparisonMode}>
+                    <span>Original</span>
+                    <span aria-hidden="true">↔</span>
+                    <span>Result</span>
                 </div>
                 <span className={styles.zoomReadout}>
                     {hasImage ? "Fit" : "100%"}
@@ -290,10 +402,67 @@ function ImageStage({
                     className={styles.sourceCanvas}
                     aria-label={
                         hasImage
-                            ? `Original image: ${metadata.name}`
+                            ? `Original and filtered comparison: ${metadata.name}`
                             : "No image loaded"
                     }
                 />
+
+                {hasImage && isProcessing && (
+                    <div
+                        className={styles.processingOverlay}
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <span
+                            className={styles.processingSweep}
+                            aria-hidden="true"
+                        />
+                        <div className={styles.processingStatus}>
+                            <span aria-hidden="true" />
+                            Applying {processingLabel} kernel
+                        </div>
+                    </div>
+                )}
+
+                {hasImage && processingError !== null && (
+                    <div
+                        className={styles.processingError}
+                        role="alert"
+                    >
+                        {processingError}
+                    </div>
+                )}
+
+                {hasImage && resultBuffer !== null && (
+                    <div
+                        className={styles.comparisonSlider}
+                        style={
+                            {
+                                "--divider-position": `${dividerPercentage}%`,
+                            } as CSSProperties
+                        }
+                        role="slider"
+                        tabIndex={0}
+                        aria-label="Original and result comparison"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(dividerPercentage)}
+                        aria-valuetext={`${Math.round(dividerPercentage)} percent original`}
+                        onPointerDown={handleDividerPointerDown}
+                        onPointerMove={handleDividerPointerMove}
+                        onKeyDown={handleDividerKeyDown}
+                    >
+                        <span className={styles.originalLabel}>Original</span>
+                        <span className={styles.resultLabel}>Result</span>
+                        <span
+                            className={styles.comparisonDivider}
+                            aria-hidden="true"
+                        >
+                            <span>‹</span>
+                            <span>›</span>
+                        </span>
+                    </div>
+                )}
 
                 {!hasImage && (
                     <div className={styles.stageAxes} aria-hidden="true">
@@ -341,7 +510,11 @@ function ImageStage({
                         <>
                             <span>{metadata.width} × {metadata.height}</span>
                             <span>{sizeInMegabytes}</span>
-                            <span>source · canvas</span>
+                            <span>
+                                {isProcessing
+                                    ? "kernel · running"
+                                    : "compare · canvas"}
+                            </span>
                         </>
                     )}
                 </div>
@@ -350,7 +523,17 @@ function ImageStage({
     );
 }
 
-function BlurPanel() {
+function BlurPanel({
+    selectedPreset,
+    onSelectPreset,
+    boxRadius,
+    onBoxRadiusChange,
+}: {
+    selectedPreset: BlurPreset;
+    onSelectPreset: (preset: BlurPreset) => void;
+    boxRadius: number;
+    onBoxRadiusChange: (radius: number) => void;
+}) {
     return (
         <section className={`${styles.panel} ${styles.blurPanel}`}>
             <PanelHeading
@@ -363,15 +546,16 @@ function BlurPanel() {
             <div className={styles.presetList} aria-label="Blur presets">
                 {presets.map((preset, index) => (
                     <button
-                        key={preset}
+                        key={preset.id}
                         className={styles.preset}
                         type="button"
-                        data-selected={preset === "Neighbour"}
-                        aria-pressed={preset === "Neighbour"}
+                        data-selected={preset.id === selectedPreset.id}
+                        aria-pressed={preset.id === selectedPreset.id}
+                        onClick={() => onSelectPreset(preset)}
                     >
                         <span>{String(index).padStart(2, "0")}</span>
-                        <strong>{preset}</strong>
-                        {preset === "Neighbour" && (
+                        <strong>{preset.label}</strong>
+                        {preset.id === selectedPreset.id && (
                             <span
                                 className={styles.selectedDot}
                                 aria-hidden="true"
@@ -385,25 +569,66 @@ function BlurPanel() {
                 <div className={styles.parameterLabel}>
                     <div>
                         <span>Direction</span>
-                        <strong>Horizontal</strong>
+                        <strong>{selectedPreset.direction}</strong>
                     </div>
-                    <span className={styles.valuePill}>x-axis</span>
+                    <span className={styles.valuePill}>
+                        {selectedPreset.id === "neighbour"
+                            ? "x-axis"
+                            : "x · y"}
+                    </span>
                 </div>
-                <div className={styles.segmentedControl}>
-                    <button type="button" data-active="true">
-                        Horizontal
-                    </button>
-                    <button type="button">Vertical</button>
-                </div>
+                {selectedPreset.id === "neighbour" && (
+                    <div className={styles.segmentedControl}>
+                        <button type="button" data-active="true">
+                            Horizontal
+                        </button>
+                        <button type="button" disabled>
+                            Vertical
+                        </button>
+                    </div>
+                )}
+                {selectedPreset.id === "box" && (
+                    <div className={styles.radiusControl}>
+                        <div className={styles.radiusReadout}>
+                            <span>Target radius</span>
+                            <strong>{boxRadius} px</strong>
+                        </div>
+                        <input
+                            type="range"
+                            min="1"
+                            max="100"
+                            step="1"
+                            value={boxRadius}
+                            aria-label="Target box blur radius in source pixels"
+                            onChange={(event) => {
+                                onBoxRadiusChange(
+                                    Number(event.currentTarget.value),
+                                );
+                            }}
+                        />
+                        <div className={styles.radiusScale} aria-hidden="true">
+                            <span>1 px</span>
+                            <span>100 px</span>
+                        </div>
+                        <p className={styles.pendingParameter}>
+                            Control state ready · engine remains at radius 1
+                            until its kernel factory is connected.
+                        </p>
+                    </div>
+                )}
             </div>
 
-            <FormulaCard />
-            <KernelSummary />
+            <FormulaCard preset={selectedPreset} />
+            <KernelSummary kernel={selectedPreset.kernel} />
         </section>
     );
 }
 
-function FormulaCard() {
+function FormulaCard({
+    preset,
+}: {
+    preset: BlurPreset;
+}) {
     return (
         <div className={styles.formulaCard}>
             <div className={styles.formulaHeader}>
@@ -412,35 +637,69 @@ function FormulaCard() {
             </div>
             <div
                 className={styles.formula}
-                aria-label="y sub i equals x sub i plus x sub i plus one divided by two"
+                aria-label={`${preset.label} kernel formula`}
             >
-                <i>y</i><sub>i</sub>
-                <span>=</span>
-                <span className={styles.fraction}>
-                    <span>
-                        <i>x</i><sub>i</sub> + <i>x</i><sub>i+1</sub>
-                    </span>
-                    <span>2</span>
-                </span>
+                {preset.id === "neighbour" && (
+                    <>
+                        <i>y</i><sub>i,j</sub>
+                        <span>=</span>
+                        <span className={styles.fraction}>
+                            <span>
+                                <i>x</i><sub>i,j</sub> + <i>x</i><sub>i+1,j</sub>
+                            </span>
+                            <span>2</span>
+                        </span>
+                    </>
+                )}
+                {preset.id === "box" && (
+                    <>
+                        <i>y</i><sub>i,j</sub>
+                        <span>=</span>
+                        <span>⅑ ∑<sub>m,n=-1</sub><sup>1</sup></span>
+                        <i>x</i><sub>i+m,j+n</sub>
+                    </>
+                )}
             </div>
-            <p>
-                Each output mixes one pixel with its neighbour in equal
-                measure.
-            </p>
+            <p>{preset.description}</p>
         </div>
     );
 }
 
-function KernelSummary() {
+function formatWeight(weight: number): string {
+    return Number.isInteger(weight)
+        ? weight.toFixed(0)
+        : weight.toFixed(3).replace(/0+$/, "");
+}
+
+function KernelSummary({
+    kernel,
+}: {
+    kernel: Kernel;
+}) {
+    const weightSum = kernel.weights.reduce(
+        (sum, weight) => sum + weight,
+        0,
+    );
+
     return (
         <div className={styles.kernelSummary}>
             <div>
                 <span>Kernel</span>
-                <strong>1 × 2 · sum 1.00</strong>
+                <strong>
+                    {kernel.height} × {kernel.width}
+                    {" · "}
+                    sum {weightSum.toFixed(2)}
+                </strong>
             </div>
-            <div className={styles.kernelSummaryMatrix}>
-                <span>0.5</span>
-                <span>0.5</span>
+            <div
+                className={styles.kernelSummaryMatrix}
+                style={{
+                    gridTemplateColumns: `repeat(${kernel.width}, 34px)`,
+                }}
+            >
+                {[...kernel.weights].map((weight, index) => (
+                    <span key={index}>{formatWeight(weight)}</span>
+                ))}
             </div>
         </div>
     );
@@ -491,24 +750,44 @@ function PixelPanel() {
     );
 }
 
-function KernelPanel() {
+function KernelPanel({
+    kernel,
+}: {
+    kernel: Kernel;
+}) {
+    const weightSum = kernel.weights.reduce(
+        (sum, weight) => sum + weight,
+        0,
+    );
+
     return (
         <section className={styles.kernelPanelContent}>
             <PanelHeading
                 eyebrow="Local weights"
                 title="Kernel"
                 accent="spatial"
-                aside={<span className={styles.dimension}>1 × 2</span>}
+                aside={
+                    <span className={styles.dimension}>
+                        {kernel.height} × {kernel.width}
+                    </span>
+                }
             />
             <div className={styles.kernelBody}>
-                <div className={styles.kernelMatrix} aria-label="Kernel one half, one half">
-                    <span>0.5</span>
-                    <span>0.5</span>
+                <div
+                    className={styles.kernelMatrix}
+                    aria-label={`${kernel.height} by ${kernel.width} kernel weights`}
+                    style={{
+                        gridTemplateColumns: `repeat(${kernel.width}, 1fr)`,
+                    }}
+                >
+                    {[...kernel.weights].map((weight, index) => (
+                        <span key={index}>{formatWeight(weight)}</span>
+                    ))}
                 </div>
                 <dl className={styles.kernelProperties}>
                     <div>
                         <dt>Sum</dt>
-                        <dd>1.00</dd>
+                        <dd>{weightSum.toFixed(2)}</dd>
                     </div>
                     <div>
                         <dt>Symmetric</dt>
@@ -698,15 +977,30 @@ function FourierPanel() {
 
 function MobileInspector({
     activePanel,
+    selectedPreset,
+    onSelectPreset,
+    boxRadius,
+    onBoxRadiusChange,
 }: {
     activePanel: MobilePanel;
+    selectedPreset: BlurPreset;
+    onSelectPreset: (preset: BlurPreset) => void;
+    boxRadius: number;
+    onBoxRadiusChange: (radius: number) => void;
 }) {
     return (
         <div className={styles.mobileInspector}>
-            {activePanel === "blur" && <BlurPanel />}
+            {activePanel === "blur" && (
+                <BlurPanel
+                    selectedPreset={selectedPreset}
+                    onSelectPreset={onSelectPreset}
+                    boxRadius={boxRadius}
+                    onBoxRadiusChange={onBoxRadiusChange}
+                />
+            )}
             {activePanel === "kernel" && (
                 <section className={`${styles.panel} ${styles.kernelPanel}`}>
-                    <KernelPanel />
+                    <KernelPanel kernel={selectedPreset.kernel} />
                 </section>
             )}
             {activePanel === "pixels" && <PixelPanel />}
@@ -749,16 +1043,162 @@ function App() {
     const [activeMobilePanel, setActiveMobilePanel] =
         useState<MobilePanel>("blur");
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [sourceBuffer, setSourceBuffer] =
+        useState<PixelBuffer | null>(null);
+    const [metadata, setMetadata] =
+        useState<ImageMetadata | null>(null);
+    const [loadError, setLoadError] = useState(false);
+    const [resultBuffer, setResultBuffer] =
+        useState<PixelBuffer | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processingError, setProcessingError] =
+        useState<string | null>(null);
+    const [selectedPresetId, setSelectedPresetId] =
+        useState<BlurPresetId>("neighbour");
+    const [boxRadius, setBoxRadius] = useState(1);
+
+    const selectedPreset = getPreset(selectedPresetId);
+
+    useEffect(() => {
+        if (sourceBuffer === null) {
+            return;
+        }
+
+        let ignoreResult = false;
+        const worker = new Worker(
+            new URL("./blurWorker.ts", import.meta.url),
+            { type: "module" },
+        );
+        const workerSource: PixelBuffer = {
+            ...sourceBuffer,
+            data: sourceBuffer.data.slice(),
+        };
+        const workerKernel: Kernel = {
+            ...selectedPreset.kernel,
+            weights: selectedPreset.kernel.weights.slice(),
+        };
+        const request: BlurWorkerRequest = {
+            source: workerSource,
+            kernel: workerKernel,
+        };
+
+        worker.onmessage = (
+            event: MessageEvent<BlurWorkerResponse>,
+        ) => {
+            if (ignoreResult) {
+                return;
+            }
+
+            if (event.data.ok) {
+                setResultBuffer(event.data.result);
+            } else {
+                setProcessingError(event.data.message);
+            }
+
+            setIsProcessing(false);
+            worker.terminate();
+        };
+
+        worker.onerror = () => {
+            if (ignoreResult) {
+                return;
+            }
+
+            setProcessingError(
+                "The blur worker stopped before producing a result.",
+            );
+            setIsProcessing(false);
+            worker.terminate();
+        };
+
+        worker.postMessage(
+            request,
+            [
+                workerSource.data.buffer as ArrayBuffer,
+                workerKernel.weights.buffer as ArrayBuffer,
+            ],
+        );
+
+        return () => {
+            ignoreResult = true;
+            worker.terminate();
+        };
+    }, [selectedPreset, sourceBuffer]);
+
+    useEffect(() => {
+        if (imageFile === null) {
+            return;
+        }
+
+        let ignoreResult = false;
+
+        void decodeImageFile(imageFile)
+            .then((buffer) => {
+                if (ignoreResult) {
+                    return;
+                }
+
+                setResultBuffer(null);
+                setProcessingError(null);
+                setIsProcessing(true);
+                setSourceBuffer(buffer);
+                setMetadata({
+                    name: imageFile.name,
+                    width: buffer.width,
+                    height: buffer.height,
+                    size: imageFile.size,
+                });
+            })
+            .catch(() => {
+                if (ignoreResult) {
+                    return;
+                }
+
+                setSourceBuffer(null);
+                setMetadata(null);
+                setLoadError(true);
+            });
+
+        return () => {
+            ignoreResult = true;
+        };
+    }, [imageFile]);
 
     const openImagePicker = () => fileInputRef.current?.click();
 
     const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
         const nextFile = event.currentTarget.files?.[0] ?? null;
+
+        setSourceBuffer(null);
+        setResultBuffer(null);
+        setMetadata(null);
+        setLoadError(false);
+        setProcessingError(null);
+        setIsProcessing(false);
         setImageFile(nextFile);
         event.currentTarget.value = "";
     };
 
-    const resetImage = () => setImageFile(null);
+    const resetImage = () => {
+        setImageFile(null);
+        setSourceBuffer(null);
+        setResultBuffer(null);
+        setMetadata(null);
+        setLoadError(false);
+        setProcessingError(null);
+        setIsProcessing(false);
+    };
+
+    const selectPreset = (preset: BlurPreset) => {
+        if (preset.id === selectedPresetId) {
+            return;
+        }
+
+        setResultBuffer(null);
+        setProcessingError(null);
+        setIsProcessing(sourceBuffer !== null);
+        setSelectedPresetId(preset.id);
+    };
 
     return (
         <div className={styles.app}>
@@ -771,22 +1211,28 @@ function App() {
                 aria-label="Choose a local image"
             />
             <TopBar
-                hasImage={imageFile !== null}
+                hasImage={sourceBuffer !== null}
                 onOpenImage={openImagePicker}
                 onReset={resetImage}
             />
             <main className={styles.workspace}>
                 <ImageStage
-                    key={
-                        imageFile === null
-                            ? "empty"
-                            : `${imageFile.name}-${imageFile.size}-${imageFile.lastModified}`
-                    }
-                    file={imageFile}
+                    sourceBuffer={sourceBuffer}
+                    resultBuffer={resultBuffer}
+                    metadata={metadata}
+                    loadError={loadError}
+                    isProcessing={isProcessing}
+                    processingError={processingError}
+                    processingLabel={selectedPreset.label}
                     onOpenImage={openImagePicker}
                 />
                 <div className={styles.desktopControls}>
-                    <BlurPanel />
+                    <BlurPanel
+                        selectedPreset={selectedPreset}
+                        onSelectPreset={selectPreset}
+                        boxRadius={boxRadius}
+                        onBoxRadiusChange={setBoxRadius}
+                    />
                 </div>
                 <div className={styles.desktopPixel}>
                     <PixelPanel />
@@ -796,7 +1242,13 @@ function App() {
                         <FourierPanel />
                     </section>
                 </div>
-                <MobileInspector activePanel={activeMobilePanel} />
+                <MobileInspector
+                    activePanel={activeMobilePanel}
+                    selectedPreset={selectedPreset}
+                    onSelectPreset={selectPreset}
+                    boxRadius={boxRadius}
+                    onBoxRadiusChange={setBoxRadius}
+                />
             </main>
             <MobileNavigation
                 activePanel={activeMobilePanel}

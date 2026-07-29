@@ -172,10 +172,22 @@ export const elevation = {
     floating: "0 12px 36px rgba(0, 0, 0, 0.46)",
     subtle: "0 6px 20px rgba(0, 0, 0, 0.28)",
 
-    primaryGlow: "0 0 24px rgba(124, 92, 255, 0.24)",
-    spatialGlow: "0 0 24px rgba(255, 59, 212, 0.22)",
-    frequencyGlow: "0 0 24px rgba(46, 235, 255, 0.20)",
-    pixelGlow: "0 0 20px rgba(183, 255, 60, 0.24)",
+    primaryGlow: [
+        "0 0 10px rgba(124, 92, 255, 0.56)",
+        "0 0 34px rgba(124, 92, 255, 0.30)",
+    ].join(", "),
+    spatialGlow: [
+        "0 0 10px rgba(255, 59, 212, 0.52)",
+        "0 0 34px rgba(255, 59, 212, 0.27)",
+    ].join(", "),
+    frequencyGlow: [
+        "0 0 10px rgba(46, 235, 255, 0.50)",
+        "0 0 34px rgba(46, 235, 255, 0.25)",
+    ].join(", "),
+    pixelGlow: [
+        "0 0 9px rgba(183, 255, 60, 0.52)",
+        "0 0 30px rgba(183, 255, 60, 0.26)",
+    ].join(", "),
 } as const;
 
 export const motion = {

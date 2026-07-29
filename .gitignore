@@ -1,8 +1,58 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+build/
 coverage/
-.DS_Store
-*.local
+
+# Vite
+.vite/
+
+# TypeScript
+*.tsbuildinfo
+
+# Environment files
 .env
 .env.*
 !.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test output
+test-results/
+playwright-report/
+blob-report/
+
+# Local caches
+.cache/
+.tmp/
+temp/
+tmp/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# LazyVim / Neovim local state
+.nvim/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Local video footage
+docs/videos/

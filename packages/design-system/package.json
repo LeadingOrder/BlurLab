@@ -3,8 +3,17 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
+    "sideEffects": [
+        "./src/global.css"
+    ],
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./global.css": "./src/global.css"
     },
-    "types": "./src/index.ts"
+    "types": "./src/index.ts",
+    "peerDependencies": {
+        "@mantine/core": ">=8 <10",
+        "react": ">=18 <20",
+        "react-dom": ">=18 <20"
+    }
 }

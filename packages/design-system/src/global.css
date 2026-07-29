@@ -1,0 +1,227 @@
+:root {
+    color-scheme: dark;
+    background: var(--blurlab-color-app);
+
+    font-family: var(--blurlab-font-family);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+    margin: 0;
+}
+
+html {
+    background: var(--blurlab-color-app);
+}
+
+body {
+    min-height: 100dvh;
+
+    color: var(--blurlab-color-ink);
+    background-color: var(--blurlab-color-app);
+    background-image:
+        radial-gradient(
+            circle at 18% 0%,
+            rgba(124, 92, 255, 0.10),
+            transparent 32rem
+        ),
+        radial-gradient(
+            circle at 82% 4%,
+            rgba(46, 235, 255, 0.07),
+            transparent 30rem
+        );
+
+    font-family: var(--blurlab-font-family);
+    font-size: var(--blurlab-font-size-body);
+    font-weight: var(--blurlab-font-weight-regular);
+    line-height: 24px;
+
+    overflow-x: hidden;
+
+    -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+button {
+    color: inherit;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+strong,
+b {
+    font-weight: var(--blurlab-font-weight-semibold);
+}
+
+::selection {
+    color: var(--blurlab-color-ink);
+    background: var(
+        --blurlab-color-selected-background-strong
+    );
+}
+
+/*
+ * Shared interaction contract.
+ *
+ * Components can opt into the standard Blur Lab feedback behaviour with
+ * data-blurlab-interactive.
+ *
+ * Domain-specific colour roles:
+ *
+ * data-blurlab-domain="spatial"
+ * data-blurlab-domain="frequency"
+ * data-blurlab-domain="pixel"
+ */
+[data-blurlab-interactive] {
+    --blurlab-local-accent:
+        var(--blurlab-color-primary);
+
+    --blurlab-local-accent-background:
+        var(--blurlab-color-selected-background);
+
+    min-width: var(--blurlab-touch-target);
+    min-height: var(--blurlab-touch-target);
+
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+
+    transition:
+        color var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        background-color var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        border-color var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        box-shadow var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        opacity var(--blurlab-duration-press)
+            var(--blurlab-easing-standard),
+        transform var(--blurlab-duration-press)
+            var(--blurlab-easing-standard);
+}
+
+[data-blurlab-domain="spatial"] {
+    --blurlab-local-accent:
+        var(--blurlab-color-spatial);
+
+    --blurlab-local-accent-background:
+        var(--blurlab-color-spatial-background);
+}
+
+[data-blurlab-domain="frequency"] {
+    --blurlab-local-accent:
+        var(--blurlab-color-frequency);
+
+    --blurlab-local-accent-background:
+        var(--blurlab-color-frequency-background);
+}
+
+[data-blurlab-domain="pixel"] {
+    --blurlab-local-accent:
+        var(--blurlab-color-pixel);
+
+    --blurlab-local-accent-background:
+        var(--blurlab-color-pixel-background);
+}
+
+[data-blurlab-interactive]:active:not(
+    :disabled
+):not(
+    [aria-disabled="true"]
+) {
+    opacity:
+        var(--blurlab-feedback-pressed-opacity);
+
+    transform: scale(
+        var(--blurlab-feedback-pressed-scale)
+    );
+}
+
+[data-blurlab-interactive]:focus-visible {
+    outline: none;
+    box-shadow: var(--blurlab-focus-ring);
+}
+
+[data-blurlab-interactive][data-selected="true"] {
+    color: var(--blurlab-local-accent);
+
+    border-color: var(--blurlab-local-accent);
+
+    background:
+        var(--blurlab-local-accent-background);
+}
+
+[data-blurlab-interactive]:disabled,
+[data-blurlab-interactive][aria-disabled="true"] {
+    color: var(--blurlab-color-ink-disabled);
+    cursor: default;
+    opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    [data-blurlab-interactive]:hover:not(
+        :disabled
+    ):not(
+        [aria-disabled="true"]
+    ) {
+        background:
+            var(--blurlab-local-accent-background);
+    }
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: var(--blurlab-radius-pill);
+    background:
+        var(--blurlab-color-line-strong);
+    background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 1ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 1ms !important;
+    }
+
+    [data-blurlab-interactive]:active {
+        transform: none;
+    }
+}

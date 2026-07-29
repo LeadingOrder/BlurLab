@@ -3,5 +3,15 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72"
+    "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
+    "scripts": {
+        "dev": "pnpm --filter @blurlab/web dev",
+        "dev:host": "pnpm --filter @blurlab/web dev --host 0.0.0.0",
+        "build": "pnpm --filter @blurlab/web build",
+        "preview": "pnpm --filter @blurlab/web preview",
+        "lint": "pnpm --filter @blurlab/web lint",
+        "typecheck": "pnpm --filter @blurlab/web exec tsc -b --pretty",
+        "check": "pnpm lint && pnpm typecheck && pnpm build",
+        "verify:repo": "bash scripts/verify_repo.sh"
+    }
 }

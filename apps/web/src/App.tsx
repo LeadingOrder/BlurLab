@@ -1,6 +1,7 @@
 import {
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
     type ChangeEvent,
@@ -11,9 +12,11 @@ import {
 } from "react";
 
 import {
-    boxBlur3x3Kernel,
-    horizontalNeighbourBlurKernel,
+    createBoxBlurKernel,
+    createHorizontalNeighbourBlurKernel,
+    pixelCoordinateToOffset,
     type Kernel,
+    type PixelCoordinate,
     type PixelBuffer,
 } from "@blurlab/engine";
 
@@ -34,31 +37,45 @@ type ImageMetadata = {
     name: string;
     width: number;
     height: number;
+    sourceWidth: number;
+    sourceHeight: number;
     size: number;
+};
+
+type FittedImageRect = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    scale: number;
 };
 
 type BlurPreset = {
     id: BlurPresetId;
     label: string;
-    kernel: Kernel;
+    createKernel: (radius: number) => Kernel;
     direction: string;
     description: string;
 };
+
+const MICROSCOPE_RADIUS = 5;
+const MICROSCOPE_SIDE_LENGTH =
+    2 * MICROSCOPE_RADIUS + 1;
 
 const presets: readonly BlurPreset[] = [
     {
         id: "neighbour",
         label: "Neighbour",
-        kernel: horizontalNeighbourBlurKernel,
+        createKernel: createHorizontalNeighbourBlurKernel,
         direction: "Horizontal",
-        description: "Each output mixes one pixel with its right-hand neighbour.",
+        description: "Each output averages the current pixel with its right-hand neighbours.",
     },
     {
         id: "box",
         label: "Box",
-        kernel: boxBlur3x3Kernel,
+        createKernel: createBoxBlurKernel,
         direction: "Both axes",
-        description: "Each output is the equal-weight average of a 3 × 3 neighbourhood.",
+        description: "Each output is the equal-weight average of a square neighbourhood.",
     },
 ];
 
@@ -153,6 +170,60 @@ function TopBar({
     );
 }
 
+function calculateFittedImageRect(
+    viewportWidth: number,
+    viewportHeight: number,
+    imageWidth: number,
+    imageHeight: number,
+): FittedImageRect {
+    const inset = Math.min(
+        40,
+        viewportWidth * 0.06,
+        viewportHeight * 0.06,
+    );
+    const scale = Math.min(
+        (viewportWidth - inset * 2) / imageWidth,
+        (viewportHeight - inset * 2) / imageHeight,
+    );
+    const width = imageWidth * scale;
+    const height = imageHeight * scale;
+
+    return {
+        x: (viewportWidth - width) / 2,
+        y: (viewportHeight - height) / 2,
+        width,
+        height,
+        scale,
+    };
+}
+
+function clampMicroscopeCenter(
+    coordinate: PixelCoordinate,
+    buffer: PixelBuffer,
+): PixelCoordinate {
+    const minX =
+        buffer.width >= MICROSCOPE_SIDE_LENGTH
+            ? MICROSCOPE_RADIUS
+            : 0;
+    const minY =
+        buffer.height >= MICROSCOPE_SIDE_LENGTH
+            ? MICROSCOPE_RADIUS
+            : 0;
+    const maxX =
+        buffer.width >= MICROSCOPE_SIDE_LENGTH
+            ? buffer.width - MICROSCOPE_RADIUS - 1
+            : buffer.width - 1;
+    const maxY =
+        buffer.height >= MICROSCOPE_SIDE_LENGTH
+            ? buffer.height - MICROSCOPE_RADIUS - 1
+            : buffer.height - 1;
+
+    return {
+        x: Math.min(maxX, Math.max(minX, coordinate.x)),
+        y: Math.min(maxY, Math.max(minY, coordinate.y)),
+    };
+}
+
 function drawFittedComparison(
     canvas: HTMLCanvasElement,
     originalRaster: HTMLCanvasElement,
@@ -185,22 +256,19 @@ function drawFittedComparison(
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
 
-    const inset = Math.min(40, width * 0.06, height * 0.06);
-    const scale = Math.min(
-        (width - inset * 2) / originalRaster.width,
-        (height - inset * 2) / originalRaster.height,
+    const imageRect = calculateFittedImageRect(
+        width,
+        height,
+        originalRaster.width,
+        originalRaster.height,
     );
-    const renderedWidth = originalRaster.width * scale;
-    const renderedHeight = originalRaster.height * scale;
-    const x = (width - renderedWidth) / 2;
-    const y = (height - renderedHeight) / 2;
 
     context.drawImage(
         originalRaster,
-        x,
-        y,
-        renderedWidth,
-        renderedHeight,
+        imageRect.x,
+        imageRect.y,
+        imageRect.width,
+        imageRect.height,
     );
 
     const dividerX = width * dividerPercentage / 100;
@@ -216,10 +284,10 @@ function drawFittedComparison(
     context.clip();
     context.drawImage(
         resultRaster,
-        x,
-        y,
-        renderedWidth,
-        renderedHeight,
+        imageRect.x,
+        imageRect.y,
+        imageRect.width,
+        imageRect.height,
     );
     context.restore();
 }
@@ -235,6 +303,8 @@ function clearCanvas(canvas: HTMLCanvasElement) {
 function ImageStage({
     sourceBuffer,
     resultBuffer,
+    selectedCoordinate,
+    onSelectedCoordinateChange,
     metadata,
     loadError,
     isProcessing,
@@ -244,6 +314,8 @@ function ImageStage({
 }: {
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
+    selectedCoordinate: PixelCoordinate | null;
+    onSelectedCoordinateChange: (coordinate: PixelCoordinate) => void;
     metadata: ImageMetadata | null;
     loadError: boolean;
     isProcessing: boolean;
@@ -256,6 +328,27 @@ function ImageStage({
     const resultRasterRef = useRef<HTMLCanvasElement | null>(null);
     const dividerPercentageRef = useRef(50);
     const [dividerPercentage, setDividerPercentage] = useState(50);
+    const [stageSize, setStageSize] = useState({
+        width: 0,
+        height: 0,
+    });
+
+    const fittedImageRect = useMemo(() => {
+        if (
+            sourceBuffer === null ||
+            stageSize.width === 0 ||
+            stageSize.height === 0
+        ) {
+            return null;
+        }
+
+        return calculateFittedImageRect(
+            stageSize.width,
+            stageSize.height,
+            sourceBuffer.width,
+            sourceBuffer.height,
+        );
+    }, [sourceBuffer, stageSize]);
 
     const drawCurrentComparison = useCallback(() => {
         const canvas = canvasRef.current;
@@ -295,6 +388,21 @@ function ImageStage({
         const originalRaster = pixelBufferToCanvas(sourceBuffer);
 
         originalRasterRef.current = originalRaster;
+        resultRasterRef.current = originalRaster;
+        drawCurrentComparison();
+    }, [drawCurrentComparison, sourceBuffer]);
+
+    useEffect(() => {
+        if (sourceBuffer === null) {
+            return;
+        }
+
+        const originalRaster = originalRasterRef.current;
+
+        if (originalRaster === null) {
+            return;
+        }
+
         resultRasterRef.current =
             resultBuffer === null
                 ? originalRaster
@@ -314,9 +422,23 @@ function ImageStage({
             return;
         }
 
-        const observer = new ResizeObserver(drawCurrentComparison);
+        const synchronizeStage = () => {
+            const bounds = container.getBoundingClientRect();
+            const width = Math.round(bounds.width);
+            const height = Math.round(bounds.height);
+
+            setStageSize((currentSize) => (
+                currentSize.width === width &&
+                currentSize.height === height
+                    ? currentSize
+                    : { width, height }
+            ));
+            drawCurrentComparison();
+        };
+        const observer = new ResizeObserver(synchronizeStage);
 
         observer.observe(container);
+        synchronizeStage();
         return () => observer.disconnect();
     }, [drawCurrentComparison]);
 
@@ -329,7 +451,13 @@ function ImageStage({
     const updateDividerFromPointer = (
         event: PointerEvent<HTMLDivElement>,
     ) => {
-        const bounds = event.currentTarget.getBoundingClientRect();
+        const bounds =
+            event.currentTarget.parentElement?.getBoundingClientRect();
+
+        if (bounds === undefined) {
+            return;
+        }
+
         const percentage =
             100 * (event.clientX - bounds.left) / bounds.width;
 
@@ -373,6 +501,129 @@ function ImageStage({
         }
     };
 
+    const updateSelectionFromPointer = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        if (sourceBuffer === null) {
+            return;
+        }
+
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const imageRect = calculateFittedImageRect(
+            bounds.width,
+            bounds.height,
+            sourceBuffer.width,
+            sourceBuffer.height,
+        );
+        const localX = event.clientX - bounds.left - imageRect.x;
+        const localY = event.clientY - bounds.top - imageRect.y;
+
+        if (
+            localX < 0 ||
+            localY < 0 ||
+            localX >= imageRect.width ||
+            localY >= imageRect.height
+        ) {
+            return;
+        }
+
+        onSelectedCoordinateChange(
+            clampMicroscopeCenter(
+                {
+                    x: Math.floor(localX / imageRect.scale),
+                    y: Math.floor(localY / imageRect.scale),
+                },
+                sourceBuffer,
+            ),
+        );
+    };
+
+    const handleSelectionPointerDown = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        updateSelectionFromPointer(event);
+    };
+
+    const handleSelectionPointerMove = (
+        event: PointerEvent<HTMLDivElement>,
+    ) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            updateSelectionFromPointer(event);
+        }
+    };
+
+    const handleSelectionKeyDown = (
+        event: KeyboardEvent<HTMLDivElement>,
+    ) => {
+        if (sourceBuffer === null || selectedCoordinate === null) {
+            return;
+        }
+
+        const step = event.shiftKey
+            ? MICROSCOPE_SIDE_LENGTH
+            : 1;
+        let nextCoordinate: PixelCoordinate;
+
+        if (event.key === "ArrowLeft") {
+            nextCoordinate = {
+                ...selectedCoordinate,
+                x: selectedCoordinate.x - step,
+            };
+        } else if (event.key === "ArrowRight") {
+            nextCoordinate = {
+                ...selectedCoordinate,
+                x: selectedCoordinate.x + step,
+            };
+        } else if (event.key === "ArrowUp") {
+            nextCoordinate = {
+                ...selectedCoordinate,
+                y: selectedCoordinate.y - step,
+            };
+        } else if (event.key === "ArrowDown") {
+            nextCoordinate = {
+                ...selectedCoordinate,
+                y: selectedCoordinate.y + step,
+            };
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        onSelectedCoordinateChange(
+            clampMicroscopeCenter(nextCoordinate, sourceBuffer),
+        );
+    };
+
+    const selectionStyle =
+        fittedImageRect === null ||
+        selectedCoordinate === null
+            ? null
+            : {
+                left:
+                    fittedImageRect.x +
+                    (selectedCoordinate.x + 0.5) *
+                    fittedImageRect.scale,
+                top:
+                    fittedImageRect.y +
+                    (selectedCoordinate.y + 0.5) *
+                    fittedImageRect.scale,
+                width: Math.max(
+                    30,
+                    MICROSCOPE_SIDE_LENGTH *
+                    fittedImageRect.scale,
+                ),
+                height: Math.max(
+                    30,
+                    MICROSCOPE_SIDE_LENGTH *
+                    fittedImageRect.scale,
+                ),
+            };
+    const selectionFootprintSize =
+        fittedImageRect === null
+            ? 0
+            : MICROSCOPE_SIDE_LENGTH * fittedImageRect.scale;
+
     return (
         <section
             className={styles.imageStage}
@@ -407,6 +658,40 @@ function ImageStage({
                     }
                 />
 
+                {hasImage && (
+                    <div
+                        className={styles.selectionSurface}
+                        onPointerDown={handleSelectionPointerDown}
+                        onPointerMove={handleSelectionPointerMove}
+                    />
+                )}
+
+                {hasImage &&
+                    selectedCoordinate !== null &&
+                    selectionStyle !== null && (
+                        <div
+                            className={styles.selectionReticle}
+                            style={selectionStyle}
+                            role="region"
+                            tabIndex={0}
+                            aria-label={`Microscope selection at x ${selectedCoordinate.x}, y ${selectedCoordinate.y}. Use arrow keys to move it.`}
+                            onKeyDown={handleSelectionKeyDown}
+                        >
+                            <span
+                                className={styles.selectionFootprint}
+                                style={{
+                                    width: selectionFootprintSize,
+                                    height: selectionFootprintSize,
+                                }}
+                                aria-hidden="true"
+                            />
+                            <span aria-hidden="true">
+                                {MICROSCOPE_SIDE_LENGTH}×
+                                {MICROSCOPE_SIDE_LENGTH}
+                            </span>
+                        </div>
+                    )}
+
                 {hasImage && isProcessing && (
                     <div
                         className={styles.processingOverlay}
@@ -434,34 +719,32 @@ function ImageStage({
                 )}
 
                 {hasImage && resultBuffer !== null && (
-                    <div
-                        className={styles.comparisonSlider}
-                        style={
-                            {
-                                "--divider-position": `${dividerPercentage}%`,
-                            } as CSSProperties
-                        }
-                        role="slider"
-                        tabIndex={0}
-                        aria-label="Original and result comparison"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(dividerPercentage)}
-                        aria-valuetext={`${Math.round(dividerPercentage)} percent original`}
-                        onPointerDown={handleDividerPointerDown}
-                        onPointerMove={handleDividerPointerMove}
-                        onKeyDown={handleDividerKeyDown}
-                    >
+                    <>
                         <span className={styles.originalLabel}>Original</span>
                         <span className={styles.resultLabel}>Result</span>
-                        <span
-                            className={styles.comparisonDivider}
-                            aria-hidden="true"
+                        <div
+                            className={styles.comparisonSlider}
+                            style={{ left: `${dividerPercentage}%` }}
+                            role="slider"
+                            tabIndex={0}
+                            aria-label="Original and result comparison"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={Math.round(dividerPercentage)}
+                            aria-valuetext={`${Math.round(dividerPercentage)} percent original`}
+                            onPointerDown={handleDividerPointerDown}
+                            onPointerMove={handleDividerPointerMove}
+                            onKeyDown={handleDividerKeyDown}
                         >
-                            <span>‹</span>
-                            <span>›</span>
-                        </span>
-                    </div>
+                            <span
+                                className={styles.comparisonDivider}
+                                aria-hidden="true"
+                            >
+                                <span>‹</span>
+                                <span>›</span>
+                            </span>
+                        </div>
+                    </>
                 )}
 
                 {!hasImage && (
@@ -511,9 +794,12 @@ function ImageStage({
                             <span>{metadata.width} × {metadata.height}</span>
                             <span>{sizeInMegabytes}</span>
                             <span>
-                                {isProcessing
-                                    ? "kernel · running"
-                                    : "compare · canvas"}
+                                {metadata.width !== metadata.sourceWidth ||
+                                metadata.height !== metadata.sourceHeight
+                                    ? `scaled from ${metadata.sourceWidth} × ${metadata.sourceHeight}`
+                                    : isProcessing
+                                        ? "kernel · running"
+                                        : "native · buffer"}
                             </span>
                         </>
                     )}
@@ -525,14 +811,16 @@ function ImageStage({
 
 function BlurPanel({
     selectedPreset,
+    kernel,
     onSelectPreset,
-    boxRadius,
-    onBoxRadiusChange,
+    blurRadius,
+    onBlurRadiusChange,
 }: {
     selectedPreset: BlurPreset;
+    kernel: Kernel;
     onSelectPreset: (preset: BlurPreset) => void;
-    boxRadius: number;
-    onBoxRadiusChange: (radius: number) => void;
+    blurRadius: number;
+    onBlurRadiusChange: (radius: number) => void;
 }) {
     return (
         <section className={`${styles.panel} ${styles.blurPanel}`}>
@@ -587,47 +875,50 @@ function BlurPanel({
                         </button>
                     </div>
                 )}
-                {selectedPreset.id === "box" && (
-                    <div className={styles.radiusControl}>
-                        <div className={styles.radiusReadout}>
-                            <span>Target radius</span>
-                            <strong>{boxRadius} px</strong>
-                        </div>
-                        <input
-                            type="range"
-                            min="1"
-                            max="100"
-                            step="1"
-                            value={boxRadius}
-                            aria-label="Target box blur radius in source pixels"
-                            onChange={(event) => {
-                                onBoxRadiusChange(
-                                    Number(event.currentTarget.value),
-                                );
-                            }}
-                        />
-                        <div className={styles.radiusScale} aria-hidden="true">
-                            <span>1 px</span>
-                            <span>100 px</span>
-                        </div>
-                        <p className={styles.pendingParameter}>
-                            Control state ready · engine remains at radius 1
-                            until its kernel factory is connected.
-                        </p>
+                <div className={styles.radiusControl}>
+                    <div className={styles.radiusReadout}>
+                        <span>Target radius</span>
+                        <strong>{blurRadius} px</strong>
                     </div>
-                )}
+                    <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        step="1"
+                        value={blurRadius}
+                        aria-label={`Target ${selectedPreset.label.toLowerCase()} blur radius in source pixels`}
+                        onChange={(event) => {
+                            onBlurRadiusChange(
+                                Number(event.currentTarget.value),
+                            );
+                        }}
+                    />
+                    <div className={styles.radiusScale} aria-hidden="true">
+                        <span>1 px</span>
+                        <span>12 px</span>
+                    </div>
+                    <p className={styles.pendingParameter}>
+                        Active kernel · {kernel.height} × {kernel.width} ·
+                        {" "}{kernel.weights.length} equal weights
+                    </p>
+                </div>
             </div>
 
-            <FormulaCard preset={selectedPreset} />
-            <KernelSummary kernel={selectedPreset.kernel} />
+            <FormulaCard
+                preset={selectedPreset}
+                blurRadius={blurRadius}
+            />
+            <KernelSummary kernel={kernel} />
         </section>
     );
 }
 
 function FormulaCard({
     preset,
+    blurRadius,
 }: {
     preset: BlurPreset;
+    blurRadius: number;
 }) {
     return (
         <div className={styles.formulaCard}>
@@ -641,22 +932,47 @@ function FormulaCard({
             >
                 {preset.id === "neighbour" && (
                     <>
-                        <i>y</i><sub>i,j</sub>
+                        <span className={styles.mathVariable}>
+                            <i>y</i><sub>i,j</sub>
+                        </span>
                         <span>=</span>
-                        <span className={styles.fraction}>
-                            <span>
-                                <i>x</i><sub>i,j</sub> + <i>x</i><sub>i+1,j</sub>
-                            </span>
-                            <span>2</span>
+                        <span className={styles.coefficientFraction}>
+                            <span>1</span>
+                            <span>{blurRadius + 1}</span>
+                        </span>
+                        <Summation
+                            index="m"
+                            lowerBound={0}
+                            upperBound={blurRadius}
+                        />
+                        <span className={styles.mathVariable}>
+                            <i>x</i><sub>i+m,j</sub>
                         </span>
                     </>
                 )}
                 {preset.id === "box" && (
                     <>
-                        <i>y</i><sub>i,j</sub>
+                        <span className={styles.mathVariable}>
+                            <i>y</i><sub>i,j</sub>
+                        </span>
                         <span>=</span>
-                        <span>⅑ ∑<sub>m,n=-1</sub><sup>1</sup></span>
-                        <i>x</i><sub>i+m,j+n</sub>
+                        <span className={styles.coefficientFraction}>
+                            <span>1</span>
+                            <span>{(2 * blurRadius + 1) ** 2}</span>
+                        </span>
+                        <Summation
+                            index="m"
+                            lowerBound={-blurRadius}
+                            upperBound={blurRadius}
+                        />
+                        <Summation
+                            index="n"
+                            lowerBound={-blurRadius}
+                            upperBound={blurRadius}
+                        />
+                        <span className={styles.mathVariable}>
+                            <i>x</i><sub>i+m,j+n</sub>
+                        </span>
                     </>
                 )}
             </div>
@@ -665,10 +981,61 @@ function FormulaCard({
     );
 }
 
+function Summation({
+    index,
+    lowerBound,
+    upperBound,
+}: {
+    index: "m" | "n";
+    lowerBound: number;
+    upperBound: number;
+}) {
+    return (
+        <span className={styles.summation} aria-hidden="true">
+            <span className={styles.summationUpper}>{upperBound}</span>
+            <span className={styles.summationSymbol}>∑</span>
+            <span className={styles.summationLower}>
+                {index}={lowerBound}
+            </span>
+        </span>
+    );
+}
+
 function formatWeight(weight: number): string {
     return Number.isInteger(weight)
         ? weight.toFixed(0)
-        : weight.toFixed(3).replace(/0+$/, "");
+        : Number(weight.toPrecision(4)).toString();
+}
+
+function CompactKernelWeight({
+    kernel,
+}: {
+    kernel: Kernel;
+}) {
+    const weight = kernel.weights[0]!;
+    const isNormalizedUniform =
+        [...kernel.weights].every(
+            (candidate) => candidate === weight,
+        ) &&
+        Math.abs(weight * kernel.weights.length - 1) <
+            Number.EPSILON * kernel.weights.length;
+
+    return (
+        <div className={styles.compactKernelWeight}>
+            <span>{kernel.weights.length} equal weights</span>
+            <strong>
+                <i>w</i>
+                <span>=</span>
+                {isNormalizedUniform && (
+                    <span className={styles.compactFraction}>
+                        <span>1</span>
+                        <span>{kernel.weights.length}</span>
+                    </span>
+                )}
+                <span>≈ {formatWeight(weight)}</span>
+            </strong>
+        </div>
+    );
 }
 
 function KernelSummary({
@@ -676,6 +1043,9 @@ function KernelSummary({
 }: {
     kernel: Kernel;
 }) {
+    const showFullMatrix =
+        kernel.width <= 5 &&
+        kernel.height <= 5;
     const weightSum = kernel.weights.reduce(
         (sum, weight) => sum + weight,
         0,
@@ -691,22 +1061,201 @@ function KernelSummary({
                     sum {weightSum.toFixed(2)}
                 </strong>
             </div>
+            {showFullMatrix ? (
+                <div
+                    className={styles.kernelSummaryMatrix}
+                    style={{
+                        gridTemplateColumns:
+                            `repeat(${kernel.width}, 34px)`,
+                    }}
+                >
+                    {[...kernel.weights].map((weight, index) => (
+                        <span key={index}>{formatWeight(weight)}</span>
+                    ))}
+                </div>
+            ) : (
+                <CompactKernelWeight kernel={kernel} />
+            )}
+        </div>
+    );
+}
+
+type RgbaSample = readonly [
+    red: number,
+    green: number,
+    blue: number,
+    alpha: number,
+];
+
+type MicroscopeSample = {
+    coordinate: PixelCoordinate | null;
+    rgba: RgbaSample | null;
+    isCenter: boolean;
+};
+
+function readPixel(
+    buffer: PixelBuffer,
+    coordinate: PixelCoordinate,
+): RgbaSample {
+    const x = Math.min(
+        buffer.width - 1,
+        Math.max(0, coordinate.x),
+    );
+    const y = Math.min(
+        buffer.height - 1,
+        Math.max(0, coordinate.y),
+    );
+    const offset = pixelCoordinateToOffset(
+        buffer,
+        { x, y },
+    );
+
+    return [
+        buffer.data[offset]!,
+        buffer.data[offset + 1]!,
+        buffer.data[offset + 2]!,
+        buffer.data[offset + 3]!,
+    ];
+}
+
+function createMicroscopeSamples(
+    buffer: PixelBuffer | null,
+    center: PixelCoordinate | null,
+): MicroscopeSample[] {
+    return Array.from(
+        { length: MICROSCOPE_SIDE_LENGTH ** 2 },
+        (_, index) => {
+            const localX = index % MICROSCOPE_SIDE_LENGTH;
+            const localY = Math.floor(
+                index / MICROSCOPE_SIDE_LENGTH,
+            );
+            const isCenter =
+                localX === MICROSCOPE_RADIUS &&
+                localY === MICROSCOPE_RADIUS;
+
+            if (buffer === null || center === null) {
+                return {
+                    coordinate: null,
+                    rgba: null,
+                    isCenter,
+                };
+            }
+
+            const coordinate = {
+                x: Math.min(
+                    buffer.width - 1,
+                    Math.max(
+                        0,
+                        center.x + localX - MICROSCOPE_RADIUS,
+                    ),
+                ),
+                y: Math.min(
+                    buffer.height - 1,
+                    Math.max(
+                        0,
+                        center.y + localY - MICROSCOPE_RADIUS,
+                    ),
+                ),
+            };
+
+            return {
+                coordinate,
+                rgba: readPixel(buffer, coordinate),
+                isCenter,
+            };
+        },
+    );
+}
+
+function formatRgba(rgba: RgbaSample | null): string {
+    return rgba === null
+        ? "—"
+        : rgba.join(", ");
+}
+
+function PixelGrid({
+    label,
+    buffer,
+    center,
+}: {
+    label: "Original" | "Result";
+    buffer: PixelBuffer | null;
+    center: PixelCoordinate | null;
+}) {
+    const samples = useMemo(
+        () => createMicroscopeSamples(buffer, center),
+        [buffer, center],
+    );
+
+    return (
+        <div className={styles.pixelGridGroup}>
+            <div>
+                <strong
+                    className={styles.pixelGridLabel}
+                    data-result={label === "Result"}
+                >
+                    {label}
+                </strong>
+                <span>
+                    {buffer === null ? "awaiting pixels" : "RGBA"}
+                </span>
+            </div>
             <div
-                className={styles.kernelSummaryMatrix}
+                className={styles.pixelGrid}
                 style={{
-                    gridTemplateColumns: `repeat(${kernel.width}, 34px)`,
+                    gridTemplateColumns:
+                        `repeat(${MICROSCOPE_SIDE_LENGTH}, var(--pixel-zoom))`,
+                    gridTemplateRows:
+                        `repeat(${MICROSCOPE_SIDE_LENGTH}, var(--pixel-zoom))`,
                 }}
+                aria-label={`${label} ${MICROSCOPE_SIDE_LENGTH} by ${MICROSCOPE_SIDE_LENGTH} pixel grid`}
             >
-                {[...kernel.weights].map((weight, index) => (
-                    <span key={index}>{formatWeight(weight)}</span>
+                {samples.map((sample, index) => (
+                    <span
+                        key={index}
+                        className={styles.pixelCell}
+                        data-center={sample.isCenter}
+                        data-available={sample.rgba !== null}
+                        style={
+                            sample.rgba === null
+                                ? undefined
+                                : {
+                                    backgroundColor:
+                                        `rgba(${sample.rgba[0]}, ${sample.rgba[1]}, ${sample.rgba[2]}, ${sample.rgba[3] / 255})`,
+                                }
+                        }
+                        title={
+                            sample.coordinate === null ||
+                            sample.rgba === null
+                                ? undefined
+                                : `x ${sample.coordinate.x}, y ${sample.coordinate.y} · RGBA ${formatRgba(sample.rgba)}`
+                        }
+                    />
                 ))}
             </div>
         </div>
     );
 }
 
-function PixelPanel() {
-    const cells = Array.from({ length: 25 }, (_, index) => index);
+function PixelPanel({
+    sourceBuffer,
+    resultBuffer,
+    selectedCoordinate,
+}: {
+    sourceBuffer: PixelBuffer | null;
+    resultBuffer: PixelBuffer | null;
+    selectedCoordinate: PixelCoordinate | null;
+}) {
+    const selectedSource =
+        sourceBuffer === null ||
+        selectedCoordinate === null
+            ? null
+            : readPixel(sourceBuffer, selectedCoordinate);
+    const selectedResult =
+        resultBuffer === null ||
+        selectedCoordinate === null
+            ? null
+            : readPixel(resultBuffer, selectedCoordinate);
 
     return (
         <section className={`${styles.panel} ${styles.pixelPanel}`}>
@@ -714,34 +1263,43 @@ function PixelPanel() {
                 eyebrow="Exact samples"
                 title="Pixel microscope"
                 accent="pixel"
-                aside={<span className={styles.coordinate}>x — · y —</span>}
+                aside={
+                    <span className={styles.coordinate}>
+                        {selectedCoordinate === null
+                            ? "x — · y —"
+                            : `x ${selectedCoordinate.x} · y ${selectedCoordinate.y}`}
+                    </span>
+                }
             />
 
             <div className={styles.microscopeBody}>
-                <div className={styles.pixelGrid} aria-label="Pixel grid preview">
-                    {cells.map((cell) => (
-                        <span
-                            key={cell}
-                            className={styles.pixelCell}
-                            data-center={cell === 12}
-                        />
-                    ))}
+                <div className={styles.pixelComparisons}>
+                    <PixelGrid
+                        label="Original"
+                        buffer={sourceBuffer}
+                        center={selectedCoordinate}
+                    />
+                    <PixelGrid
+                        label="Result"
+                        buffer={resultBuffer}
+                        center={selectedCoordinate}
+                    />
                 </div>
                 <div className={styles.sampleData}>
                     <span>Selected pixel</span>
-                    <strong>RGBA unavailable</strong>
+                    <strong>
+                        {selectedCoordinate === null
+                            ? "RGBA unavailable"
+                            : `x ${selectedCoordinate.x}, y ${selectedCoordinate.y}`}
+                    </strong>
                     <dl>
                         <div>
-                            <dt>Source</dt>
-                            <dd>—</dd>
+                            <dt>Original</dt>
+                            <dd>{formatRgba(selectedSource)}</dd>
                         </div>
                         <div>
                             <dt>Result</dt>
-                            <dd>—</dd>
-                        </div>
-                        <div>
-                            <dt>Scale</dt>
-                            <dd>16×</dd>
+                            <dd>{formatRgba(selectedResult)}</dd>
                         </div>
                     </dl>
                 </div>
@@ -755,6 +1313,9 @@ function KernelPanel({
 }: {
     kernel: Kernel;
 }) {
+    const showFullMatrix =
+        kernel.width <= 5 &&
+        kernel.height <= 5;
     const weightSum = kernel.weights.reduce(
         (sum, weight) => sum + weight,
         0,
@@ -773,17 +1334,22 @@ function KernelPanel({
                 }
             />
             <div className={styles.kernelBody}>
-                <div
-                    className={styles.kernelMatrix}
-                    aria-label={`${kernel.height} by ${kernel.width} kernel weights`}
-                    style={{
-                        gridTemplateColumns: `repeat(${kernel.width}, 1fr)`,
-                    }}
-                >
-                    {[...kernel.weights].map((weight, index) => (
-                        <span key={index}>{formatWeight(weight)}</span>
-                    ))}
-                </div>
+                {showFullMatrix ? (
+                    <div
+                        className={styles.kernelMatrix}
+                        aria-label={`${kernel.height} by ${kernel.width} kernel weights`}
+                        style={{
+                            gridTemplateColumns:
+                                `repeat(${kernel.width}, 1fr)`,
+                        }}
+                    >
+                        {[...kernel.weights].map((weight, index) => (
+                            <span key={index}>{formatWeight(weight)}</span>
+                        ))}
+                    </div>
+                ) : (
+                    <CompactKernelWeight kernel={kernel} />
+                )}
                 <dl className={styles.kernelProperties}>
                     <div>
                         <dt>Sum</dt>
@@ -978,32 +1544,47 @@ function FourierPanel() {
 function MobileInspector({
     activePanel,
     selectedPreset,
+    kernel,
+    sourceBuffer,
+    resultBuffer,
+    selectedCoordinate,
     onSelectPreset,
-    boxRadius,
-    onBoxRadiusChange,
+    blurRadius,
+    onBlurRadiusChange,
 }: {
     activePanel: MobilePanel;
     selectedPreset: BlurPreset;
+    kernel: Kernel;
+    sourceBuffer: PixelBuffer | null;
+    resultBuffer: PixelBuffer | null;
+    selectedCoordinate: PixelCoordinate | null;
     onSelectPreset: (preset: BlurPreset) => void;
-    boxRadius: number;
-    onBoxRadiusChange: (radius: number) => void;
+    blurRadius: number;
+    onBlurRadiusChange: (radius: number) => void;
 }) {
     return (
         <div className={styles.mobileInspector}>
             {activePanel === "blur" && (
                 <BlurPanel
                     selectedPreset={selectedPreset}
+                    kernel={kernel}
                     onSelectPreset={onSelectPreset}
-                    boxRadius={boxRadius}
-                    onBoxRadiusChange={onBoxRadiusChange}
+                    blurRadius={blurRadius}
+                    onBlurRadiusChange={onBlurRadiusChange}
                 />
             )}
             {activePanel === "kernel" && (
                 <section className={`${styles.panel} ${styles.kernelPanel}`}>
-                    <KernelPanel kernel={selectedPreset.kernel} />
+                    <KernelPanel kernel={kernel} />
                 </section>
             )}
-            {activePanel === "pixels" && <PixelPanel />}
+            {activePanel === "pixels" && (
+                <PixelPanel
+                    sourceBuffer={sourceBuffer}
+                    resultBuffer={resultBuffer}
+                    selectedCoordinate={selectedCoordinate}
+                />
+            )}
             {activePanel === "fourier" && (
                 <section className={`${styles.panel} ${styles.fourierPanel}`}>
                     <FourierPanel />
@@ -1050,14 +1631,33 @@ function App() {
     const [loadError, setLoadError] = useState(false);
     const [resultBuffer, setResultBuffer] =
         useState<PixelBuffer | null>(null);
+    const [selectedCoordinate, setSelectedCoordinate] =
+        useState<PixelCoordinate | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingError, setProcessingError] =
         useState<string | null>(null);
     const [selectedPresetId, setSelectedPresetId] =
         useState<BlurPresetId>("neighbour");
-    const [boxRadius, setBoxRadius] = useState(1);
-
+    const [blurRadius, setBlurRadius] = useState<number>(1);
     const selectedPreset = getPreset(selectedPresetId);
+    const selectedKernel = useMemo(
+        () => selectedPreset.createKernel(blurRadius),
+        [blurRadius, selectedPreset],
+    );
+
+    const changeBlurRadius = (radius: number) => {
+        if (radius === blurRadius) {
+            return;
+        }
+
+        setBlurRadius(radius);
+
+        if (sourceBuffer !== null) {
+            setResultBuffer(null);
+            setProcessingError(null);
+            setIsProcessing(true);
+        }
+    };
 
     useEffect(() => {
         if (sourceBuffer === null) {
@@ -1074,8 +1674,8 @@ function App() {
             data: sourceBuffer.data.slice(),
         };
         const workerKernel: Kernel = {
-            ...selectedPreset.kernel,
-            weights: selectedPreset.kernel.weights.slice(),
+            ...selectedKernel,
+            weights: selectedKernel.weights.slice(),
         };
         const request: BlurWorkerRequest = {
             source: workerSource,
@@ -1123,7 +1723,7 @@ function App() {
             ignoreResult = true;
             worker.terminate();
         };
-    }, [selectedPreset, sourceBuffer]);
+    }, [selectedKernel, sourceBuffer]);
 
     useEffect(() => {
         if (imageFile === null) {
@@ -1133,19 +1733,32 @@ function App() {
         let ignoreResult = false;
 
         void decodeImageFile(imageFile)
-            .then((buffer) => {
+            .then((decodedImage) => {
                 if (ignoreResult) {
                     return;
                 }
+
+                const { buffer } = decodedImage;
 
                 setResultBuffer(null);
                 setProcessingError(null);
                 setIsProcessing(true);
                 setSourceBuffer(buffer);
+                setSelectedCoordinate(
+                    clampMicroscopeCenter(
+                        {
+                            x: Math.floor(buffer.width / 2),
+                            y: Math.floor(buffer.height / 2),
+                        },
+                        buffer,
+                    ),
+                );
                 setMetadata({
                     name: imageFile.name,
                     width: buffer.width,
                     height: buffer.height,
+                    sourceWidth: decodedImage.sourceWidth,
+                    sourceHeight: decodedImage.sourceHeight,
                     size: imageFile.size,
                 });
             })
@@ -1171,6 +1784,7 @@ function App() {
 
         setSourceBuffer(null);
         setResultBuffer(null);
+        setSelectedCoordinate(null);
         setMetadata(null);
         setLoadError(false);
         setProcessingError(null);
@@ -1183,6 +1797,7 @@ function App() {
         setImageFile(null);
         setSourceBuffer(null);
         setResultBuffer(null);
+        setSelectedCoordinate(null);
         setMetadata(null);
         setLoadError(false);
         setProcessingError(null);
@@ -1219,6 +1834,8 @@ function App() {
                 <ImageStage
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
+                    selectedCoordinate={selectedCoordinate}
+                    onSelectedCoordinateChange={setSelectedCoordinate}
                     metadata={metadata}
                     loadError={loadError}
                     isProcessing={isProcessing}
@@ -1229,13 +1846,18 @@ function App() {
                 <div className={styles.desktopControls}>
                     <BlurPanel
                         selectedPreset={selectedPreset}
+                        kernel={selectedKernel}
                         onSelectPreset={selectPreset}
-                        boxRadius={boxRadius}
-                        onBoxRadiusChange={setBoxRadius}
+                        blurRadius={blurRadius}
+                        onBlurRadiusChange={changeBlurRadius}
                     />
                 </div>
                 <div className={styles.desktopPixel}>
-                    <PixelPanel />
+                    <PixelPanel
+                        sourceBuffer={sourceBuffer}
+                        resultBuffer={resultBuffer}
+                        selectedCoordinate={selectedCoordinate}
+                    />
                 </div>
                 <div className={styles.desktopFourier}>
                     <section className={`${styles.panel} ${styles.fourierPanel}`}>
@@ -1245,9 +1867,13 @@ function App() {
                 <MobileInspector
                     activePanel={activeMobilePanel}
                     selectedPreset={selectedPreset}
+                    kernel={selectedKernel}
+                    sourceBuffer={sourceBuffer}
+                    resultBuffer={resultBuffer}
+                    selectedCoordinate={selectedCoordinate}
                     onSelectPreset={selectPreset}
-                    boxRadius={boxRadius}
-                    onBoxRadiusChange={setBoxRadius}
+                    blurRadius={blurRadius}
+                    onBlurRadiusChange={changeBlurRadius}
                 />
             </main>
             <MobileNavigation

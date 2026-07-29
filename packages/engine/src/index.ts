@@ -7,8 +7,10 @@
  */
 export {
     boxBlur3x3Kernel,
+    createHorizontalNeighbourBlurKernel,
     horizontalNeighbourBlurKernel,
     identityKernel,
+    createBoxBlurKernel,
 } from "./blurKernels";
 export {
     assertValidKernel,
@@ -16,6 +18,8 @@ export {
 } from "./kernel";
 export {
     assertValidPixelBuffer,
+    pixelCoordinateToOffset,
+    type PixelCoordinate,
     type PixelBuffer,
 } from "./pixelBuffer";
 export { applyKernel } from "./transforms/applyKernel";

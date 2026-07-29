@@ -15,18 +15,65 @@ export const identityKernel: Kernel = {
     weights: new Float64Array([1]),
 };
 
-export const horizontalNeighbourBlurKernel: Kernel = {
-    width: 2,
-    height: 1,
-    anchorX: 0,
-    anchorY: 0,
-    weights: new Float64Array([0.5, 0.5]),
-};
+export function createHorizontalNeighbourBlurKernel(
+    radius: number,
+): Kernel {
+    if (!Number.isSafeInteger(radius) || radius < 1) {
+        throw new RangeError(
+            "Horizontal neighbour blur radius must be a positive safe integer.",
+        );
+    }
 
-export const boxBlur3x3Kernel: Kernel = {
-    width: 3,
-    height: 3,
-    anchorX: 1,
-    anchorY: 1,
-    weights: new Float64Array(9).fill(1 / 9),
-};
+    const weightCount = radius + 1;
+
+    if (!Number.isSafeInteger(weightCount)) {
+        throw new RangeError(
+            "Horizontal neighbour blur radius exceeds the supported kernel size.",
+        );
+    }
+
+    return {
+        width: weightCount,
+        height: 1,
+        anchorX: 0,
+        anchorY: 0,
+        weights: new Float64Array(weightCount).fill(
+            1 / weightCount,
+        ),
+    };
+}
+
+export const horizontalNeighbourBlurKernel =
+    createHorizontalNeighbourBlurKernel(1);
+
+export function createBoxBlurKernel(
+    radius: number,
+): Kernel {
+    if (!Number.isSafeInteger(radius) || radius < 1) {
+        throw new RangeError(
+            "Box blur radius must be a positive safe integer.",
+        );
+    }
+
+    const sideLength = 2 * radius + 1;
+    const weightCount = sideLength * sideLength;
+
+    if (!Number.isSafeInteger(weightCount)) {
+        throw new RangeError(
+            "Box blur radius exceeds the supported kernel size.",
+        );
+    }
+
+    return {
+        width: sideLength,
+        height: sideLength,
+        anchorX: radius,
+        anchorY: radius,
+        weights: new Float64Array(weightCount).fill(
+            1 / weightCount,
+        ),
+    };
+}
+
+export const boxBlur3x3Kernel =
+    createBoxBlurKernel(1);

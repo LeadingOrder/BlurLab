@@ -343,22 +343,78 @@
     display: block;
 }
 
-.comparisonSlider {
+.selectionSurface {
     position: absolute;
-    z-index: 3;
+    z-index: 2;
     inset: 0;
-    cursor: ew-resize;
-    outline: none;
+    cursor: crosshair;
     touch-action: none;
 }
 
+.selectionReticle {
+    position: absolute;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(183, 255, 60, 0.95);
+    border-radius: 5px;
+    color: var(--blurlab-color-pixel);
+    box-shadow:
+        inset 0 0 12px rgba(183, 255, 60, 0.12),
+        0 0 7px rgba(183, 255, 60, 0.95),
+        0 0 22px rgba(183, 255, 60, 0.45);
+    outline: none;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.selectionReticle:focus-visible {
+    box-shadow:
+        inset 0 0 0 2px rgba(3, 3, 5, 0.85),
+        0 0 0 2px var(--blurlab-color-pixel),
+        0 0 24px rgba(183, 255, 60, 0.7);
+}
+
+.selectionReticle > span:last-child {
+    position: absolute;
+    top: calc(100% + 5px);
+    padding: 3px 5px;
+    border-radius: 4px;
+    background: rgba(3, 3, 5, 0.78);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    line-height: 1;
+    text-shadow: 0 0 8px rgba(183, 255, 60, 0.8);
+}
+
+.selectionFootprint {
+    min-width: 2px;
+    min-height: 2px;
+    border: 1px solid rgba(183, 255, 60, 0.55);
+    background: rgba(183, 255, 60, 0.08);
+}
+
+.comparisonSlider {
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    bottom: 0;
+    width: 42px;
+    cursor: ew-resize;
+    outline: none;
+    touch-action: none;
+    transform: translateX(-50%);
+}
+
 .comparisonSlider:focus-visible {
-    box-shadow: inset 0 0 0 2px rgba(124, 92, 255, 0.86);
+    filter: drop-shadow(0 0 7px rgba(46, 235, 255, 0.9));
 }
 
 .originalLabel,
-.resultLabel {
+.resultLabel,
+.pixelGridLabel {
     position: absolute;
+    z-index: 4;
     top: 14px;
     padding: 6px 9px;
     border: 1px solid rgba(255, 255, 255, 0.13);
@@ -372,6 +428,20 @@
     letter-spacing: 0.08em;
     pointer-events: none;
     text-transform: uppercase;
+}
+
+.pixelGridLabel {
+    position: static;
+    z-index: auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 25px;
+    padding: 5px 8px;
+}
+
+.pixelGridLabel[data-result="true"] {
+    color: var(--blurlab-color-frequency);
+    text-shadow: 0 0 10px rgba(46, 235, 255, 0.75);
 }
 
 .originalLabel {
@@ -388,7 +458,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--divider-position);
+    left: 50%;
     width: 2px;
     background: var(--blurlab-color-frequency);
     box-shadow:
@@ -435,7 +505,7 @@
 
 .processingOverlay {
     position: absolute;
-    z-index: 4;
+    z-index: 6;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
@@ -970,13 +1040,14 @@
 
 .formula {
     display: flex;
-    min-height: 63px;
+    min-height: 82px;
     align-items: center;
     justify-content: center;
-    gap: 9px;
+    gap: 7px;
     color: var(--blurlab-color-ink);
     font-family: Georgia, "Times New Roman", serif;
-    font-size: 19px;
+    font-size: clamp(16px, 1.35vw, 20px);
+    white-space: nowrap;
 }
 
 .formula sub {
@@ -984,19 +1055,72 @@
     font-size: 10px;
 }
 
-.fraction {
+.mathVariable {
+    display: inline-flex;
+    align-items: baseline;
+}
+
+.mathVariable i {
+    font-size: 1.35em;
+}
+
+.coefficientFraction,
+.compactFraction {
     display: inline-grid;
-    text-align: center;
+    align-items: center;
+    justify-items: center;
+    line-height: 1;
     grid-template-rows: auto auto;
 }
 
-.fraction > span:first-child {
-    padding: 0 5px 3px;
-    border-bottom: 1px solid var(--blurlab-color-ink-muted);
+.coefficientFraction {
+    min-width: 32px;
+    font-size: 14px;
 }
 
-.fraction > span:last-child {
+.coefficientFraction > span:first-child,
+.compactFraction > span:first-child {
+    width: 100%;
+    padding-bottom: 2px;
+    border-bottom: 1px solid currentColor;
+    text-align: center;
+}
+
+.coefficientFraction > span:last-child,
+.compactFraction > span:last-child {
     padding-top: 2px;
+}
+
+.summation {
+    display: inline-grid;
+    min-width: 39px;
+    align-items: center;
+    justify-items: center;
+    line-height: 0.9;
+    grid-template-areas:
+        "upper"
+        "symbol"
+        "lower";
+    grid-template-rows: 12px 28px 14px;
+}
+
+.summationUpper {
+    color: var(--blurlab-color-ink-muted);
+    font-size: 10px;
+    grid-area: upper;
+}
+
+.summationSymbol {
+    font-size: 32px;
+    line-height: 0.8;
+    grid-area: symbol;
+}
+
+.summationLower {
+    color: var(--blurlab-color-ink-muted);
+    font-size: 9px;
+    font-style: italic;
+    grid-area: lower;
 }
 
 .formulaCard > p {
@@ -1060,6 +1184,40 @@
     font-size: 9px;
 }
 
+.compactKernelWeight {
+    display: grid;
+    min-width: 188px;
+    padding: 8px 12px;
+    border-right: 1px solid var(--blurlab-color-spatial);
+    border-left: 1px solid var(--blurlab-color-spatial);
+    border-radius: 5px;
+    background: var(--blurlab-color-spatial-background);
+    gap: 6px;
+}
+
+.compactKernelWeight > span {
+    color: var(--blurlab-color-ink-muted);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.compactKernelWeight strong {
+    display: flex;
+    align-items: center;
+    color: var(--blurlab-color-spatial-strong);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 11px;
+    font-weight: 500;
+    gap: 7px;
+}
+
+.compactFraction {
+    min-width: 24px;
+    font-size: 9px;
+}
+
 .pixelPanel,
 .fourierPanel {
     min-height: 300px;
@@ -1077,25 +1235,62 @@
     display: grid;
     min-height: 220px;
     margin-top: 14px;
-    grid-template-columns: minmax(180px, 0.72fr) minmax(160px, 0.28fr);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+}
+
+.pixelComparisons {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    padding: 2px 2px 8px;
+    gap: 14px;
+    overflow-x: auto;
+    scrollbar-color:
+        rgba(183, 255, 60, 0.45)
+        rgba(255, 255, 255, 0.04);
+}
+
+.pixelGridGroup {
+    flex: 0 0 auto;
+}
+
+.pixelGridGroup > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+}
+
+.pixelGridGroup > div:first-child span {
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
 }
 
 .pixelGrid {
+    --pixel-zoom: clamp(24px, 1.9vw, 30px);
+
     display: grid;
     overflow: hidden;
     border: 1px solid rgba(183, 255, 60, 0.22);
-    border-radius: 10px;
+    border-radius: 7px;
     background: var(--blurlab-color-stage);
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(5, 1fr);
+    box-shadow:
+        inset 0 0 18px rgba(183, 255, 60, 0.04),
+        0 0 16px rgba(183, 255, 60, 0.08);
 }
 
 .pixelCell {
     position: relative;
-    min-height: 30px;
+    width: var(--pixel-zoom);
+    height: var(--pixel-zoom);
+    box-sizing: border-box;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pixelCell[data-available="false"] {
     background:
         linear-gradient(
             135deg,
@@ -1104,18 +1299,17 @@
         );
 }
 
-.pixelCell:nth-child(3n) {
+.pixelCell[data-available="false"]:nth-child(3n) {
     --cell-shade: 0.035;
 }
 
-.pixelCell:nth-child(4n) {
+.pixelCell[data-available="false"]:nth-child(4n) {
     --cell-shade: 0.07;
 }
 
 .pixelCell[data-center="true"] {
     z-index: 1;
     border: 2px solid var(--blurlab-color-pixel);
-    background: var(--blurlab-color-pixel-background);
     box-shadow:
         inset 0 0 18px rgba(183, 255, 60, 0.12),
         var(--blurlab-shadow-pixel-glow);
@@ -1178,6 +1372,11 @@
     margin: 0;
     font-family: var(--blurlab-font-family-mono);
     font-size: 10px;
+}
+
+.sampleData dd {
+    max-width: 112px;
+    text-align: right;
 }
 
 .kernelBody {
@@ -1554,8 +1753,8 @@
         grid-template-columns: 1fr;
     }
 
-    .pixelGrid {
-        min-height: 210px;
+    .pixelComparisons {
+        align-items: flex-start;
     }
 
     .sampleData dl {

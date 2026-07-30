@@ -1,0 +1,132 @@
+.dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    color: var(--blurlab-color-ink);
+    background:
+        radial-gradient(circle at 12% 10%, rgba(124, 92, 255, 0.16), transparent 34rem),
+        radial-gradient(circle at 88% 80%, rgba(46, 235, 255, 0.1), transparent 36rem),
+        var(--blurlab-color-app);
+}
+
+.dialog::backdrop {
+    background: rgba(3, 3, 5, 0.94);
+}
+
+.shell {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    padding: 12px;
+    grid-template-rows: 52px minmax(0, 1fr);
+    gap: 10px;
+}
+
+.toolbar {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 14px;
+    border: 1px solid rgba(124, 92, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(15, 17, 24, 0.78);
+    box-shadow:
+        var(--blurlab-shadow-subtle),
+        0 0 24px rgba(124, 92, 255, 0.08);
+}
+
+.toolbar > div {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.toolbar span {
+    flex: 0 0 auto;
+    color: var(--blurlab-color-primary);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.toolbar strong {
+    overflow: hidden;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.closeButton {
+    min-width: 86px;
+    min-height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: var(--blurlab-color-ink);
+    background: rgba(255, 255, 255, 0.045);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.closeButton:hover {
+    border-color: rgba(46, 235, 255, 0.35);
+    background: rgba(46, 235, 255, 0.07);
+}
+
+.closeButton:focus-visible {
+    outline: none;
+    box-shadow: var(--blurlab-focus-ring);
+}
+
+.content {
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+.content > * {
+    min-height: 100%;
+}
+
+.content[data-panel="image"] {
+    overflow: hidden;
+}
+
+.content[data-panel="image"] > * {
+    height: 100%;
+}
+
+@media (max-width: 520px) {
+    .shell {
+        padding: 7px;
+        grid-template-rows: 48px minmax(0, 1fr);
+        gap: 7px;
+    }
+
+    .toolbar {
+        padding-left: 10px;
+    }
+
+    .toolbar > div {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .toolbar strong {
+        font-size: 12px;
+    }
+
+    .closeButton {
+        min-width: 72px;
+        min-height: 34px;
+    }
+}

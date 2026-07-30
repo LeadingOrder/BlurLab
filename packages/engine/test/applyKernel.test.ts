@@ -58,11 +58,11 @@ describe("applyKernel", () => {
         expect([...result.data]).toEqual([
             5, 15, 25, 255,
             15, 25, 35, 255,
-            20, 30, 40, 255,
+            10, 20, 30, 255,
         ]);
     });
 
-    it("uses clamp-to-edge sampling at image boundaries", () => {
+    it("preserves a one-pixel image under circular sampling", () => {
         const source = pixelBuffer(
             1,
             1,
@@ -97,7 +97,7 @@ describe("applyKernel", () => {
         expect([...result.data]).toEqual([
             8, 18, 28, 255,
             18, 28, 38, 255,
-            20, 30, 40, 255,
+            5, 15, 25, 255,
         ]);
     });
 });

@@ -12,7 +12,6 @@
         "lint": "pnpm --filter @blurlab/web lint",
         "typecheck": "pnpm --filter @blurlab/web exec tsc -b --pretty",
         "check": "pnpm lint && pnpm typecheck && pnpm build",
-        "verify:repo": "bash scripts/verify_repo.sh",
-        "deploy": "pnpm --filter @blurlab/web deploy"
+        "verify:repo": "bash scripts/verify_repo.sh"
     }
 }

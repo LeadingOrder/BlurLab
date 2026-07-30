@@ -1,4 +1,4 @@
-import { clamp } from "../boundary";
+import { wrap } from "../boundary";
 import { assertValidKernel, type Kernel } from "../kernel";
 import {
     assertValidPixelBuffer,
@@ -46,7 +46,7 @@ export function applyKernel(
         const lookupOffset = x * kernelWidth;
 
         for (let kx = 0; kx < kernelWidth; kx += 1) {
-            const sampleX = clamp(
+            const sampleX = wrap(
                 x + kx - anchorX,
                 0,
                 width - 1,
@@ -61,7 +61,7 @@ export function applyKernel(
         const lookupOffset = y * kernelHeight;
 
         for (let ky = 0; ky < kernelHeight; ky += 1) {
-            const sampleY = clamp(
+            const sampleY = wrap(
                 y + ky - anchorY,
                 0,
                 height - 1,

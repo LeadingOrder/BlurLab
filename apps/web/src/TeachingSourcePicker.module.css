@@ -1,0 +1,196 @@
+.picker {
+    position: relative;
+}
+
+.picker summary {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 0 15px;
+    border: 1px solid rgba(183, 255, 60, 0.2);
+    border-radius: var(--blurlab-radius-control);
+    color: var(--blurlab-color-pixel);
+    background: rgba(183, 255, 60, 0.055);
+    box-shadow: 0 0 18px rgba(183, 255, 60, 0.07);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+}
+
+.picker summary::-webkit-details-marker {
+    display: none;
+}
+
+.picker summary::before {
+    width: 6px;
+    height: 6px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--blurlab-color-pixel);
+    box-shadow: var(--blurlab-shadow-pixel-glow);
+    content: "";
+}
+
+.picker summary:focus-visible,
+.option:focus-visible {
+    outline: none;
+    box-shadow: var(--blurlab-focus-ring);
+}
+
+.popover {
+    position: absolute;
+    z-index: 80;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(540px, calc(100vw - 24px));
+    padding: 12px;
+    border: 1px solid rgba(183, 255, 60, 0.25);
+    border-radius: 14px;
+    background: rgba(8, 9, 13, 0.98);
+    box-shadow:
+        var(--blurlab-shadow-floating),
+        0 0 35px rgba(183, 255, 60, 0.1);
+    backdrop-filter: blur(22px) saturate(135%);
+}
+
+.popoverHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 2px 3px 10px;
+    gap: 16px;
+}
+
+.popoverHeader strong {
+    color: var(--blurlab-color-ink);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.popoverHeader span {
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+}
+
+.options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.option {
+    min-width: 0;
+    padding: 6px;
+    border: 1px solid rgba(183, 255, 60, 0.13);
+    border-radius: 9px;
+    color: var(--blurlab-color-ink-muted);
+    background: rgba(255, 255, 255, 0.025);
+    cursor: pointer;
+    text-align: left;
+    transition:
+        border-color var(--blurlab-duration-control) var(--blurlab-easing-standard),
+        background var(--blurlab-duration-control) var(--blurlab-easing-standard),
+        transform var(--blurlab-duration-press) var(--blurlab-easing-standard);
+}
+
+.option:hover,
+.option[data-selected="true"] {
+    border-color: rgba(183, 255, 60, 0.42);
+    color: var(--blurlab-color-pixel);
+    background: rgba(183, 255, 60, 0.07);
+}
+
+.option:active {
+    transform: scale(var(--blurlab-feedback-pressed-scale));
+}
+
+.option canvas {
+    display: block;
+    width: 100%;
+    height: 54px;
+    border-radius: 5px;
+    background: var(--blurlab-color-stage);
+    image-rendering: auto;
+}
+
+.option strong,
+.option span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.option strong {
+    margin: 7px 2px 0;
+    color: currentColor;
+    font-size: 9px;
+}
+
+.option span {
+    margin: 2px 2px 1px;
+    color: var(--blurlab-color-ink-disabled);
+    font-size: 7px;
+}
+
+.emptyGrid {
+    display: grid;
+    width: min(540px, calc(100vw - 48px));
+    margin: 18px auto 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.emptyGrid .option canvas {
+    height: 42px;
+}
+
+@media (max-width: 860px) {
+    .picker summary {
+        min-height: 42px;
+        padding: 0 12px;
+        font-size: 11px;
+    }
+
+    .popover {
+        position: fixed;
+        top: 70px;
+        right: 8px;
+        left: 8px;
+        width: auto;
+    }
+}
+
+@media (max-width: 520px) {
+    .picker summary {
+        width: 42px;
+        justify-content: center;
+        padding: 0;
+        font-size: 0;
+    }
+
+    .picker summary::before {
+        width: 8px;
+        height: 8px;
+        margin: 0;
+    }
+
+    .options,
+    .emptyGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .emptyGrid {
+        width: min(320px, calc(100vw - 32px));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .option {
+        transition: none;
+    }
+}

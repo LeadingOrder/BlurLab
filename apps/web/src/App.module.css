@@ -156,8 +156,10 @@
 
 .topBar button:focus-visible,
 .stageOpenButton:focus-visible,
+.expandButton:focus-visible,
 .preset:focus-visible,
 .segmentedControl button:focus-visible,
+.scopeModeControl button:focus-visible,
 .viewSwitch button:focus-visible,
 .comparisonSlider:focus-visible,
 .mobileNavigation button:focus-visible {
@@ -255,6 +257,17 @@
     grid-template-columns: 1fr auto 1fr;
 }
 
+.stageToolbarEnd,
+.panelHeadingActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stageToolbarEnd {
+    justify-self: end;
+}
+
 .stageToolbar > div:first-child {
     gap: 8px;
     color: var(--blurlab-color-ink-muted);
@@ -274,7 +287,7 @@
 }
 
 .zoomReadout {
-    justify-self: end;
+    flex: 0 0 auto;
 }
 
 .viewSwitch,
@@ -662,6 +675,24 @@
     flex-direction: column;
 }
 
+.emptyState[data-with-sources="true"] {
+    max-width: 620px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+}
+
+.emptyState[data-with-sources="true"] .emptyGlyph {
+    width: 54px;
+    height: 54px;
+    margin-bottom: 15px;
+    border-radius: 16px;
+    transform: scale(0.8);
+}
+
+.emptyState[data-with-sources="true"] > p:not(.emptyKicker) {
+    margin-bottom: 14px;
+}
+
 .emptyGlyph {
     position: relative;
     width: 72px;
@@ -778,6 +809,83 @@
     justify-content: space-between;
 }
 
+.panelHeadingActions {
+    flex: 0 0 auto;
+}
+
+.expandButton {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(46, 235, 255, 0.18);
+    border-radius: 8px;
+    color: var(--blurlab-color-frequency);
+    background: rgba(46, 235, 255, 0.045);
+    box-shadow: 0 0 14px rgba(46, 235, 255, 0.06);
+    cursor: pointer;
+    transition:
+        border-color var(--blurlab-duration-control) var(--blurlab-easing-standard),
+        background var(--blurlab-duration-control) var(--blurlab-easing-standard),
+        transform var(--blurlab-duration-press) var(--blurlab-easing-standard);
+}
+
+.expandButton:hover {
+    border-color: rgba(46, 235, 255, 0.45);
+    background: rgba(46, 235, 255, 0.1);
+}
+
+.expandButton:active {
+    transform: scale(var(--blurlab-feedback-pressed-scale));
+}
+
+.expandGlyph {
+    position: relative;
+    display: block;
+    width: 14px;
+    height: 14px;
+    filter: drop-shadow(0 0 5px rgba(46, 235, 255, 0.55));
+}
+
+.expandGlyph > span {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-color: currentColor;
+    border-style: solid;
+    border-width: 0;
+}
+
+.expandGlyph > span:nth-child(1) {
+    top: 0;
+    left: 0;
+    border-top-width: 1.5px;
+    border-left-width: 1.5px;
+}
+
+.expandGlyph > span:nth-child(2) {
+    top: 0;
+    right: 0;
+    border-top-width: 1.5px;
+    border-right-width: 1.5px;
+}
+
+.expandGlyph > span:nth-child(3) {
+    right: 0;
+    bottom: 0;
+    border-right-width: 1.5px;
+    border-bottom-width: 1.5px;
+}
+
+.expandGlyph > span:nth-child(4) {
+    bottom: 0;
+    left: 0;
+    border-bottom-width: 1.5px;
+    border-left-width: 1.5px;
+}
+
 .panelHeading h2 {
     margin: 0;
     color: var(--blurlab-color-ink);
@@ -833,6 +941,50 @@
         var(--blurlab-shadow-panel),
         inset 0 1px 0 rgba(124, 92, 255, 0.11),
         0 0 32px rgba(124, 92, 255, 0.10);
+}
+
+.blurPanel[data-presentation="true"] {
+    display: grid;
+    min-height: 100%;
+    padding: clamp(20px, 3vw, 44px);
+    overflow: auto;
+    grid-template-columns:
+        minmax(280px, 0.75fr)
+        minmax(440px, 1.25fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    column-gap: clamp(24px, 4vw, 64px);
+    row-gap: 18px;
+}
+
+.blurPanel[data-presentation="true"] > .panelHeading {
+    grid-column: 1 / -1;
+}
+
+.blurPanel[data-presentation="true"] > .presetList {
+    align-self: start;
+    margin-top: 0;
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.blurPanel[data-presentation="true"] > .parameterBlock {
+    align-self: start;
+    margin-top: 0;
+    grid-column: 1;
+    grid-row: 3 / 5;
+}
+
+.blurPanel[data-presentation="true"] > .formulaCard {
+    min-height: 0;
+    margin-top: 0;
+    grid-column: 2;
+    grid-row: 2 / 4;
+}
+
+.blurPanel[data-presentation="true"] > .kernelSummary {
+    margin-top: 0;
+    grid-column: 2;
+    grid-row: 4;
 }
 
 .presetList {
@@ -1164,6 +1316,10 @@
     font-size: 9px;
 }
 
+.kernelSummary > .expandButton {
+    margin-left: 8px;
+}
+
 .kernelSummaryMatrix {
     display: grid;
     padding: 4px;
@@ -1229,6 +1385,27 @@
         var(--blurlab-shadow-panel),
         inset 0 1px 0 rgba(183, 255, 60, 0.08),
         0 0 32px rgba(183, 255, 60, 0.10);
+}
+
+.pixelPanel[data-presentation="true"] {
+    display: grid;
+    min-height: 100%;
+    padding: clamp(20px, 3vw, 44px);
+    overflow: auto;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.pixelPanel[data-presentation="true"] .microscopeBody {
+    min-height: 0;
+    align-items: center;
+    grid-template-columns:
+        minmax(690px, 1fr)
+        minmax(180px, 0.25fr);
+    gap: clamp(24px, 4vw, 64px);
+}
+
+.pixelPanel[data-presentation="true"] .pixelComparisons {
+    justify-content: center;
 }
 
 .microscopeBody {
@@ -1419,6 +1596,37 @@
     min-width: 0;
 }
 
+.kernelPanelContent[data-presentation="true"],
+.fourierPanelContent[data-presentation="true"] {
+    min-height: 100%;
+}
+
+.kernelPanelContent[data-presentation="true"] {
+    display: grid;
+    padding: clamp(12px, 2vw, 30px);
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.kernelPanelContent[data-presentation="true"] .kernelBody {
+    min-height: 0;
+    align-content: center;
+    grid-template-columns:
+        minmax(320px, 1fr)
+        minmax(220px, 0.45fr);
+    gap: clamp(24px, 5vw, 80px);
+}
+
+.fourierPanelContent[data-presentation="true"] {
+    display: grid;
+    padding: clamp(12px, 2vw, 30px);
+    grid-template-rows: auto auto auto minmax(280px, 1fr) auto;
+}
+
+.fourierPanelContent[data-presentation="true"] .frequencyPlot {
+    height: auto;
+    min-height: 280px;
+}
+
 .kernelPanel {
     border-color: rgba(255, 59, 212, 0.25);
     box-shadow:
@@ -1444,6 +1652,55 @@
         inset 0 0 12px rgba(46, 235, 255, 0.08),
         0 0 16px rgba(46, 235, 255, 0.16);
     text-shadow: 0 0 10px rgba(46, 235, 255, 0.66);
+}
+
+.fourierControls {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    gap: 12px;
+}
+
+.fourierControls > span {
+    overflow: hidden;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scopeModeControl {
+    display: inline-grid;
+    flex: 0 0 auto;
+    padding: 3px;
+    border: 1px solid rgba(46, 235, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(3, 3, 5, 0.45);
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.scopeModeControl button {
+    min-width: 64px;
+    padding: 6px 9px;
+    border: 0;
+    border-radius: 5px;
+    color: var(--blurlab-color-ink-muted);
+    background: transparent;
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.scopeModeControl button[data-active="true"] {
+    color: var(--blurlab-color-frequency);
+    background: var(--blurlab-color-frequency-background-strong);
+    box-shadow:
+        inset 0 0 0 1px rgba(46, 235, 255, 0.25),
+        0 0 13px rgba(46, 235, 255, 0.16);
+    text-shadow: 0 0 8px rgba(46, 235, 255, 0.65);
 }
 
 .fourierLegend {
@@ -1512,6 +1769,23 @@
     display: block;
     width: 100%;
     height: 100%;
+}
+
+.frequencyPlotStatus {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    max-width: calc(100% - 70px);
+    padding: 6px 9px;
+    border: 1px solid rgba(46, 235, 255, 0.16);
+    border-radius: 6px;
+    color: var(--blurlab-color-frequency);
+    background: rgba(3, 3, 5, 0.72);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    text-align: center;
+    text-shadow: 0 0 9px rgba(46, 235, 255, 0.55);
+    transform: translate(-50%, -50%);
 }
 
 .frequencyAxisLabel {
@@ -1623,6 +1897,15 @@
         grid-template-columns: 1fr auto;
     }
 
+    .stageToolbarEnd {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .comparisonMode {
+        display: none;
+    }
+
     .stageToolbar .viewSwitch {
         display: none;
     }
@@ -1663,6 +1946,26 @@
         display: none;
     }
 
+    .blurPanel[data-presentation="true"],
+    .pixelPanel[data-presentation="true"] {
+        display: block;
+        padding: 18px;
+    }
+
+    .pixelPanel[data-presentation="true"] .microscopeBody {
+        min-height: 0;
+        grid-template-columns: 1fr;
+    }
+
+    .pixelPanel[data-presentation="true"] .pixelComparisons {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .kernelPanelContent[data-presentation="true"] .kernelBody {
+        grid-template-columns: 1fr;
+    }
+
     .mobileInspector {
         display: block;
         margin-top: 8px;
@@ -1674,6 +1977,11 @@
 
     .mobileInspector .microscopeBody {
         min-height: 230px;
+    }
+
+    .mobileInspector .pixelComparisons {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .mobileInspector .frequencyPlot {
@@ -1783,6 +2091,7 @@
 @media (prefers-reduced-motion: reduce) {
     .topBar button,
     .stageOpenButton,
+    .expandButton,
     .preset {
         transition: none;
     }

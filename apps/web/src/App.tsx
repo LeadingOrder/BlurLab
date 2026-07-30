@@ -14,17 +14,35 @@ import {
 import {
     createBoxBlurKernel,
     createHorizontalNeighbourBlurKernel,
+    createTeachingPattern,
     pixelCoordinateToOffset,
+    SPECTRUM_IMPLEMENTATION_READY,
+    type FourierScopeMode,
     type Kernel,
     type PixelCoordinate,
     type PixelBuffer,
+    type SpectrumAnalysisResult,
+    type TeachingPatternId,
 } from "@blurlab/engine";
 
 import styles from "./App.module.css";
+import {
+    FullscreenPanel,
+    type ExpandedPanel,
+} from "./FullscreenPanel";
+import {
+    TeachingSourceGrid,
+    TeachingSourcePicker,
+} from "./TeachingSourcePicker";
+import { teachingSources } from "./teachingSources";
 import type {
     BlurWorkerRequest,
     BlurWorkerResponse,
 } from "./blurWorkerProtocol";
+import type {
+    FourierWorkerRequest,
+    FourierWorkerResponse,
+} from "./fourierWorkerProtocol";
 import {
     decodeImageFile,
     pixelBufferToCanvas,
@@ -39,7 +57,8 @@ type ImageMetadata = {
     height: number;
     sourceWidth: number;
     sourceHeight: number;
-    size: number;
+    size: number | null;
+    source: "file" | "teaching";
 };
 
 type FittedImageRect = {
@@ -61,6 +80,8 @@ type BlurPreset = {
 const MICROSCOPE_RADIUS = 5;
 const MICROSCOPE_SIDE_LENGTH =
     2 * MICROSCOPE_RADIUS + 1;
+const INITIAL_TEACHING_PATTERN: TeachingPatternId =
+    "composite";
 
 const presets: readonly BlurPreset[] = [
     {
@@ -92,18 +113,61 @@ const mobilePanels: {
         { id: "kernel", label: "Kernel", index: "02" },
         { id: "pixels", label: "Pixels", index: "03" },
         { id: "fourier", label: "Fourier", index: "04" },
-    ];
+];
+
+const expandedPanelTitles: Record<ExpandedPanel, string> = {
+    image: "Image stage",
+    blur: "Blur controls",
+    kernel: "Kernel",
+    pixels: "Pixel microscope",
+    fourier: "Fourier scope",
+};
+
+function createTeachingSource(
+    id: TeachingPatternId,
+): {
+    buffer: PixelBuffer;
+    metadata: ImageMetadata;
+} {
+    const buffer = createTeachingPattern(id);
+    const definition = teachingSources.find(
+        (source) => source.id === id,
+    );
+
+    if (definition === undefined) {
+        throw new Error(`Unknown teaching source: ${id}`);
+    }
+
+    return {
+        buffer,
+        metadata: {
+            name: definition.label,
+            width: buffer.width,
+            height: buffer.height,
+            sourceWidth: buffer.width,
+            sourceHeight: buffer.height,
+            size: null,
+            source: "teaching",
+        },
+    };
+}
+
+const initialTeachingSource = createTeachingSource(
+    INITIAL_TEACHING_PATTERN,
+);
 
 function PanelHeading({
     eyebrow,
     title,
     accent,
     aside,
+    onExpand,
 }: {
     eyebrow: string;
     title: string;
     accent: "primary" | "spatial" | "pixel" | "frequency";
     aside?: ReactNode;
+    onExpand?: () => void;
 }) {
     return (
         <header className={styles.panelHeading}>
@@ -116,17 +180,59 @@ function PanelHeading({
                 </p>
                 <h2>{title}</h2>
             </div>
-            {aside}
+            {(aside !== undefined || onExpand !== undefined) && (
+                <div className={styles.panelHeadingActions}>
+                    {aside}
+                    {onExpand !== undefined && (
+                        <ExpandButton
+                            label={title}
+                            onClick={onExpand}
+                        />
+                    )}
+                </div>
+            )}
         </header>
+    );
+}
+
+function ExpandButton({
+    label,
+    onClick,
+}: {
+    label: string;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            className={styles.expandButton}
+            type="button"
+            aria-label={`Open ${label} in presentation view`}
+            title={`Present ${label}`}
+            onClick={onClick}
+        >
+            <span
+                className={styles.expandGlyph}
+                aria-hidden="true"
+            >
+                <span />
+                <span />
+                <span />
+                <span />
+            </span>
+        </button>
     );
 }
 
 function TopBar({
     hasImage,
+    activeTeachingPattern,
+    onSelectTeachingPattern,
     onOpenImage,
     onReset,
 }: {
     hasImage: boolean;
+    activeTeachingPattern: TeachingPatternId | null;
+    onSelectTeachingPattern: (id: TeachingPatternId) => void;
     onOpenImage: () => void;
     onReset: () => void;
 }) {
@@ -145,6 +251,10 @@ function TopBar({
             </div>
 
             <div className={styles.topBarActions}>
+                <TeachingSourcePicker
+                    activeId={activeTeachingPattern}
+                    onSelect={onSelectTeachingPattern}
+                />
                 <span className={styles.localBadge}>
                     <span aria-hidden="true" />
                     Local only
@@ -310,7 +420,11 @@ function ImageStage({
     isProcessing,
     processingError,
     processingLabel,
+    dividerPercentage,
+    onDividerPercentageChange,
+    onExpand,
     onOpenImage,
+    onSelectTeachingPattern,
 }: {
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
@@ -321,13 +435,16 @@ function ImageStage({
     isProcessing: boolean;
     processingError: string | null;
     processingLabel: string;
+    dividerPercentage: number;
+    onDividerPercentageChange: (percentage: number) => void;
+    onExpand?: () => void;
     onOpenImage: () => void;
+    onSelectTeachingPattern: (id: TeachingPatternId) => void;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const originalRasterRef = useRef<HTMLCanvasElement | null>(null);
     const resultRasterRef = useRef<HTMLCanvasElement | null>(null);
-    const dividerPercentageRef = useRef(50);
-    const [dividerPercentage, setDividerPercentage] = useState(50);
+    const dividerPercentageRef = useRef(dividerPercentage);
     const [stageSize, setStageSize] = useState({
         width: 0,
         height: 0,
@@ -444,7 +561,7 @@ function ImageStage({
 
     const hasImage = sourceBuffer !== null && metadata !== null;
     const sizeInMegabytes =
-        metadata === null
+        metadata === null || metadata.size === null
             ? null
             : `${(metadata.size / 1_000_000).toFixed(1)} MB`;
 
@@ -461,7 +578,7 @@ function ImageStage({
         const percentage =
             100 * (event.clientX - bounds.left) / bounds.width;
 
-        setDividerPercentage(
+        onDividerPercentageChange(
             Math.min(100, Math.max(0, percentage)),
         );
     };
@@ -488,16 +605,20 @@ function ImageStage({
 
         if (event.key === "ArrowLeft") {
             event.preventDefault();
-            setDividerPercentage((value) => Math.max(0, value - step));
+            onDividerPercentageChange(
+                Math.max(0, dividerPercentage - step),
+            );
         } else if (event.key === "ArrowRight") {
             event.preventDefault();
-            setDividerPercentage((value) => Math.min(100, value + step));
+            onDividerPercentageChange(
+                Math.min(100, dividerPercentage + step),
+            );
         } else if (event.key === "Home") {
             event.preventDefault();
-            setDividerPercentage(0);
+            onDividerPercentageChange(0);
         } else if (event.key === "End") {
             event.preventDefault();
-            setDividerPercentage(100);
+            onDividerPercentageChange(100);
         }
     };
 
@@ -627,13 +748,13 @@ function ImageStage({
     return (
         <section
             className={styles.imageStage}
-            aria-labelledby="stage-title"
+            aria-label="Image stage"
             data-has-image={hasImage}
         >
             <div className={styles.stageToolbar}>
                 <div>
                     <span className={styles.liveDot} aria-hidden="true" />
-                    <span id="stage-title">
+                    <span>
                         {metadata?.name ?? "Image stage"}
                     </span>
                 </div>
@@ -642,9 +763,17 @@ function ImageStage({
                     <span aria-hidden="true">↔</span>
                     <span>Result</span>
                 </div>
-                <span className={styles.zoomReadout}>
-                    {hasImage ? "Fit" : "100%"}
-                </span>
+                <div className={styles.stageToolbarEnd}>
+                    <span className={styles.zoomReadout}>
+                        {hasImage ? "Fit" : "100%"}
+                    </span>
+                    {onExpand !== undefined && (
+                        <ExpandButton
+                            label="Image stage"
+                            onClick={onExpand}
+                        />
+                    )}
+                </div>
             </div>
 
             <div className={styles.stageCanvas}>
@@ -755,7 +884,10 @@ function ImageStage({
                 )}
 
                 {!hasImage && (
-                    <div className={styles.emptyState}>
+                    <div
+                        className={styles.emptyState}
+                        data-with-sources={!loadError}
+                    >
                         <div className={styles.emptyGlyph} aria-hidden="true">
                             <span />
                         </div>
@@ -779,6 +911,11 @@ function ImageStage({
                         >
                             {loadError ? "Choose another image" : "Open an image"}
                         </button>
+                        {!loadError && (
+                            <TeachingSourceGrid
+                                onSelect={onSelectTeachingPattern}
+                            />
+                        )}
                     </div>
                 )}
 
@@ -792,7 +929,11 @@ function ImageStage({
                     ) : (
                         <>
                             <span>{metadata.width} × {metadata.height}</span>
-                            <span>{sizeInMegabytes}</span>
+                            <span>
+                                {metadata.source === "teaching"
+                                    ? "generated source"
+                                    : sizeInMegabytes}
+                            </span>
                             <span>
                                 {metadata.width !== metadata.sourceWidth ||
                                 metadata.height !== metadata.sourceHeight
@@ -815,20 +956,30 @@ function BlurPanel({
     onSelectPreset,
     blurRadius,
     onBlurRadiusChange,
+    onExpand,
+    onExpandKernel,
+    presentation = false,
 }: {
     selectedPreset: BlurPreset;
     kernel: Kernel;
     onSelectPreset: (preset: BlurPreset) => void;
     blurRadius: number;
     onBlurRadiusChange: (radius: number) => void;
+    onExpand?: () => void;
+    onExpandKernel?: () => void;
+    presentation?: boolean;
 }) {
     return (
-        <section className={`${styles.panel} ${styles.blurPanel}`}>
+        <section
+            className={`${styles.panel} ${styles.blurPanel}`}
+            data-presentation={presentation}
+        >
             <PanelHeading
                 eyebrow="Spatial operation"
                 title="Blur"
                 accent="primary"
                 aside={<span className={styles.stepBadge}>1 / 5</span>}
+                onExpand={onExpand}
             />
 
             <div className={styles.presetList} aria-label="Blur presets">
@@ -899,7 +1050,7 @@ function BlurPanel({
                     </div>
                     <p className={styles.pendingParameter}>
                         Active kernel · {kernel.height} × {kernel.width} ·
-                        {" "}{kernel.weights.length} equal weights
+                        {" "}{kernel.weights.length} equal weights · periodic edge
                     </p>
                 </div>
             </div>
@@ -908,7 +1059,10 @@ function BlurPanel({
                 preset={selectedPreset}
                 blurRadius={blurRadius}
             />
-            <KernelSummary kernel={kernel} />
+            <KernelSummary
+                kernel={kernel}
+                onExpand={onExpandKernel}
+            />
         </section>
     );
 }
@@ -1040,8 +1194,10 @@ function CompactKernelWeight({
 
 function KernelSummary({
     kernel,
+    onExpand,
 }: {
     kernel: Kernel;
+    onExpand?: () => void;
 }) {
     const showFullMatrix =
         kernel.width <= 5 &&
@@ -1050,7 +1206,6 @@ function KernelSummary({
         (sum, weight) => sum + weight,
         0,
     );
-
     return (
         <div className={styles.kernelSummary}>
             <div>
@@ -1075,6 +1230,12 @@ function KernelSummary({
                 </div>
             ) : (
                 <CompactKernelWeight kernel={kernel} />
+            )}
+            {onExpand !== undefined && (
+                <ExpandButton
+                    label="Kernel"
+                    onClick={onExpand}
+                />
             )}
         </div>
     );
@@ -1241,10 +1402,14 @@ function PixelPanel({
     sourceBuffer,
     resultBuffer,
     selectedCoordinate,
+    onExpand,
+    presentation = false,
 }: {
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
     selectedCoordinate: PixelCoordinate | null;
+    onExpand?: () => void;
+    presentation?: boolean;
 }) {
     const selectedSource =
         sourceBuffer === null ||
@@ -1258,7 +1423,10 @@ function PixelPanel({
             : readPixel(resultBuffer, selectedCoordinate);
 
     return (
-        <section className={`${styles.panel} ${styles.pixelPanel}`}>
+        <section
+            className={`${styles.panel} ${styles.pixelPanel}`}
+            data-presentation={presentation}
+        >
             <PanelHeading
                 eyebrow="Exact samples"
                 title="Pixel microscope"
@@ -1270,6 +1438,7 @@ function PixelPanel({
                             : `x ${selectedCoordinate.x} · y ${selectedCoordinate.y}`}
                     </span>
                 }
+                onExpand={onExpand}
             />
 
             <div className={styles.microscopeBody}>
@@ -1310,8 +1479,12 @@ function PixelPanel({
 
 function KernelPanel({
     kernel,
+    onExpand,
+    presentation = false,
 }: {
     kernel: Kernel;
+    onExpand?: () => void;
+    presentation?: boolean;
 }) {
     const showFullMatrix =
         kernel.width <= 5 &&
@@ -1320,9 +1493,19 @@ function KernelPanel({
         (sum, weight) => sum + weight,
         0,
     );
+    const isSymmetric =
+        kernel.anchorX * 2 === kernel.width - 1 &&
+        kernel.anchorY * 2 === kernel.height - 1 &&
+        [...kernel.weights].every(
+            (weight, index, weights) =>
+                weight === weights[weights.length - index - 1],
+        );
 
     return (
-        <section className={styles.kernelPanelContent}>
+        <section
+            className={styles.kernelPanelContent}
+            data-presentation={presentation}
+        >
             <PanelHeading
                 eyebrow="Local weights"
                 title="Kernel"
@@ -1332,6 +1515,7 @@ function KernelPanel({
                         {kernel.height} × {kernel.width}
                     </span>
                 }
+                onExpand={onExpand}
             />
             <div className={styles.kernelBody}>
                 {showFullMatrix ? (
@@ -1357,11 +1541,15 @@ function KernelPanel({
                     </div>
                     <div>
                         <dt>Symmetric</dt>
-                        <dd>Yes</dd>
+                        <dd>{isSymmetric ? "Yes" : "No"}</dd>
                     </div>
                     <div>
                         <dt>Separable</dt>
                         <dd>Yes</dd>
+                    </div>
+                    <div>
+                        <dt>Boundary</dt>
+                        <dd>Periodic</dd>
                     </div>
                 </dl>
             </div>
@@ -1374,23 +1562,38 @@ const plotSeries = [
         label: "Input · X",
         detail: "source spectrum",
         color: "#7c5cff",
-        values: [0.15, 0.24, 0.37, 0.58, 0.82, 0.95, 0.82, 0.58, 0.37, 0.24, 0.15],
+        field: "inputDecibels",
     },
     {
         label: "Kernel · H",
         detail: "transfer function",
         color: "#ff3bd4",
-        values: [0.06, 0.12, 0.24, 0.48, 0.82, 1, 0.82, 0.48, 0.24, 0.12, 0.06],
+        field: "kernelDecibels",
     },
     {
         label: "Output · Y",
         detail: "filtered spectrum",
         color: "#2eebff",
-        values: [0.02, 0.06, 0.15, 0.37, 0.7, 0.95, 0.7, 0.37, 0.15, 0.06, 0.02],
+        field: "outputDecibels",
     },
 ] as const;
 
-function drawFrequencyPlot(canvas: HTMLCanvasElement) {
+const FOURIER_LOCAL_SIZE = 64;
+const FOURIER_MAXIMUM_BIN_COUNT = 257;
+const FOURIER_DECIBEL_FLOOR = -60;
+
+type FourierAnalysisStatus =
+    | "unavailable"
+    | "empty"
+    | "waiting"
+    | "analyzing"
+    | "ready"
+    | "error";
+
+function drawFrequencyPlot(
+    canvas: HTMLCanvasElement,
+    analysis: SpectrumAnalysisResult | null,
+) {
     const bounds = canvas.getBoundingClientRect();
 
     if (bounds.width === 0 || bounds.height === 0) {
@@ -1441,12 +1644,32 @@ function drawFrequencyPlot(canvas: HTMLCanvasElement) {
 
     context.fillStyle = "rgba(162, 164, 178, 0.72)";
     context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+    context.textAlign = "right";
+
+    for (let index = 0; index <= 3; index += 1) {
+        const decibels =
+            FOURIER_DECIBEL_FLOOR * index / 3;
+        const y = top + plotHeight * index / 3;
+
+        context.fillText(
+            `${decibels.toFixed(0)}`,
+            left - 7,
+            y + 3,
+        );
+    }
+
     context.textAlign = "center";
     context.fillText("−π", left, height - 9);
     context.fillText("0", left + plotWidth / 2, height - 9);
     context.fillText("+π", width - right, height - 9);
 
+    if (analysis === null) {
+        return;
+    }
+
     plotSeries.forEach((series) => {
+        const values = analysis[series.field];
+
         context.save();
         context.strokeStyle = series.color;
         context.lineWidth = 2;
@@ -1456,11 +1679,17 @@ function drawFrequencyPlot(canvas: HTMLCanvasElement) {
         context.shadowBlur = 13;
         context.beginPath();
 
-        series.values.forEach((value, index) => {
+        values.forEach((value, index) => {
             const x =
                 left +
-                (plotWidth * index) / (series.values.length - 1);
-            const y = top + plotHeight * (1 - value);
+                (plotWidth * index) / Math.max(1, values.length - 1);
+            const normalizedValue =
+                (value - FOURIER_DECIBEL_FLOOR) /
+                -FOURIER_DECIBEL_FLOOR;
+            const y =
+                top +
+                plotHeight *
+                (1 - Math.min(1, Math.max(0, normalizedValue)));
 
             if (index === 0) {
                 context.moveTo(x, y);
@@ -1474,7 +1703,13 @@ function drawFrequencyPlot(canvas: HTMLCanvasElement) {
     });
 }
 
-function FrequencyPlot() {
+function FrequencyPlot({
+    analysis,
+    statusLabel,
+}: {
+    analysis: SpectrumAnalysisResult | null;
+    statusLabel: string;
+}) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -1484,13 +1719,13 @@ function FrequencyPlot() {
             return;
         }
 
-        const draw = () => drawFrequencyPlot(canvas);
+        const draw = () => drawFrequencyPlot(canvas, analysis);
         const observer = new ResizeObserver(draw);
 
         observer.observe(canvas);
         draw();
         return () => observer.disconnect();
-    }, []);
+    }, [analysis]);
 
     return (
         <div className={styles.frequencyPlot}>
@@ -1498,20 +1733,247 @@ function FrequencyPlot() {
                 ref={canvasRef}
                 aria-label="Combined preview of input spectrum, kernel transfer function, and output spectrum"
             />
+            {analysis === null && (
+                <div className={styles.frequencyPlotStatus}>
+                    {statusLabel}
+                </div>
+            )}
             <div className={styles.frequencyAxisLabel}>spatial frequency</div>
         </div>
     );
 }
 
-function FourierPanel() {
+function useFourierAnalysis({
+    sourceBuffer,
+    resultBuffer,
+    kernel,
+    mode,
+    selectedCoordinate,
+}: {
+    sourceBuffer: PixelBuffer | null;
+    resultBuffer: PixelBuffer | null;
+    kernel: Kernel;
+    mode: FourierScopeMode;
+    selectedCoordinate: PixelCoordinate | null;
+}): {
+    analysis: SpectrumAnalysisResult | null;
+    status: FourierAnalysisStatus;
+    error: string | null;
+} {
+    const [analysis, setAnalysis] =
+        useState<SpectrumAnalysisResult | null>(null);
+    const [status, setStatus] =
+        useState<FourierAnalysisStatus>("unavailable");
+    const [error, setError] = useState<string | null>(null);
+    const centerX =
+        mode === "local"
+            ? selectedCoordinate?.x ?? null
+            : null;
+    const centerY =
+        mode === "local"
+            ? selectedCoordinate?.y ?? null
+            : null;
+
+    useEffect(() => {
+        if (
+            !SPECTRUM_IMPLEMENTATION_READY ||
+            sourceBuffer === null ||
+            resultBuffer === null ||
+            (mode === "local" &&
+                (centerX === null || centerY === null))
+        ) {
+            return;
+        }
+
+        let ignoreResult = false;
+        let worker: Worker | null = null;
+        const delay = mode === "local" ? 80 : 0;
+        const timeout = window.setTimeout(() => {
+            setAnalysis(null);
+            setError(null);
+            setStatus("analyzing");
+
+            const workerSource: PixelBuffer = {
+                ...sourceBuffer,
+                data: sourceBuffer.data.slice(),
+            };
+            const workerResult: PixelBuffer = {
+                ...resultBuffer,
+                data: resultBuffer.data.slice(),
+            };
+            const workerKernel: Kernel = {
+                ...kernel,
+                weights: kernel.weights.slice(),
+            };
+            const request: FourierWorkerRequest = {
+                source: workerSource,
+                result: workerResult,
+                kernel: workerKernel,
+                mode,
+                center:
+                    centerX === null || centerY === null
+                        ? null
+                        : { x: centerX, y: centerY },
+                localSize: FOURIER_LOCAL_SIZE,
+                maximumBinCount: FOURIER_MAXIMUM_BIN_COUNT,
+                decibelFloor: FOURIER_DECIBEL_FLOOR,
+            };
+
+            worker = new Worker(
+                new URL("./fourierWorker.ts", import.meta.url),
+                { type: "module" },
+            );
+            worker.onmessage = (
+                event: MessageEvent<FourierWorkerResponse>,
+            ) => {
+                if (ignoreResult) {
+                    return;
+                }
+
+                if (event.data.ok) {
+                    setAnalysis(event.data.result);
+                    setStatus("ready");
+                } else {
+                    setError(event.data.message);
+                    setStatus("error");
+                }
+
+                worker?.terminate();
+            };
+            worker.onerror = () => {
+                if (ignoreResult) {
+                    return;
+                }
+
+                setError(
+                    "The Fourier worker stopped before producing a spectrum.",
+                );
+                setStatus("error");
+                worker?.terminate();
+            };
+            worker.postMessage(
+                request,
+                [
+                    workerSource.data.buffer as ArrayBuffer,
+                    workerResult.data.buffer as ArrayBuffer,
+                    workerKernel.weights.buffer as ArrayBuffer,
+                ],
+            );
+        }, delay);
+
+        return () => {
+            ignoreResult = true;
+            window.clearTimeout(timeout);
+            worker?.terminate();
+        };
+    }, [
+        centerX,
+        centerY,
+        kernel,
+        mode,
+        resultBuffer,
+        sourceBuffer,
+    ]);
+
+    if (!SPECTRUM_IMPLEMENTATION_READY) {
+        return {
+            analysis: null,
+            status: "unavailable",
+            error: null,
+        };
+    }
+
+    if (sourceBuffer === null) {
+        return {
+            analysis: null,
+            status: "empty",
+            error: null,
+        };
+    }
+
+    if (
+        resultBuffer === null ||
+        (mode === "local" &&
+            (centerX === null || centerY === null))
+    ) {
+        return {
+            analysis: null,
+            status: "waiting",
+            error: null,
+        };
+    }
+
+    return { analysis, status, error };
+}
+
+function FourierPanel({
+    mode,
+    onModeChange,
+    analysis,
+    status,
+    error,
+    onExpand,
+    presentation = false,
+}: {
+    mode: FourierScopeMode;
+    onModeChange: (mode: FourierScopeMode) => void;
+    analysis: SpectrumAnalysisResult | null;
+    status: FourierAnalysisStatus;
+    error: string | null;
+    onExpand?: () => void;
+    presentation?: boolean;
+}) {
+    const statusLabel =
+        status === "unavailable"
+            ? "Implement spectrum.ts to activate"
+            : status === "empty"
+                ? "Load an image"
+                : status === "waiting"
+                    ? "Waiting for filtered pixels"
+                    : status === "analyzing"
+                        ? "Analyzing spectrum"
+                        : status === "error"
+                            ? error ?? "Spectrum unavailable"
+                            : analysis === null
+                                ? "Spectrum unavailable"
+                                : `${analysis.mode === "global" ? "Global" : "Local"} · ${analysis.sampleWidth} × ${analysis.sampleHeight}`;
+
     return (
-        <section className={styles.fourierPanelContent}>
+        <section
+            className={styles.fourierPanelContent}
+            data-presentation={presentation}
+        >
             <PanelHeading
                 eyebrow="Frequency response"
                 title="Fourier scope"
                 accent="frequency"
                 aside={<span className={styles.equationBadge}>X × H = Y</span>}
+                onExpand={onExpand}
             />
+            <div className={styles.fourierControls}>
+                <div
+                    className={styles.scopeModeControl}
+                    aria-label="Fourier analysis region"
+                >
+                    <button
+                        type="button"
+                        data-active={mode === "global"}
+                        aria-pressed={mode === "global"}
+                        onClick={() => onModeChange("global")}
+                    >
+                        Global
+                    </button>
+                    <button
+                        type="button"
+                        data-active={mode === "local"}
+                        aria-pressed={mode === "local"}
+                        onClick={() => onModeChange("local")}
+                    >
+                        Local
+                    </button>
+                </div>
+                <span aria-live="polite">{statusLabel}</span>
+            </div>
             <div className={styles.fourierLegend}>
                 {plotSeries.map((series) => (
                     <div key={series.label}>
@@ -1530,11 +1992,16 @@ function FourierPanel() {
                     </div>
                 ))}
             </div>
-            <FrequencyPlot />
+            <FrequencyPlot
+                analysis={analysis}
+                statusLabel={statusLabel}
+            />
             <div className={styles.previewNotice}>
-                <span>Structural preview</span>
+                <span>Periodic boundary</span>
                 <p>
-                    Live spectra begin with the canonical pixel buffer.
+                    {mode === "global"
+                        ? "The complete working image uses the same circular domain as convolution."
+                        : `A ${FOURIER_LOCAL_SIZE} × ${FOURIER_LOCAL_SIZE} Hann window follows the microscope center.`}
                 </p>
             </div>
         </section>
@@ -1548,9 +2015,15 @@ function MobileInspector({
     sourceBuffer,
     resultBuffer,
     selectedCoordinate,
+    fourierMode,
+    fourierAnalysis,
+    fourierStatus,
+    fourierError,
     onSelectPreset,
     blurRadius,
     onBlurRadiusChange,
+    onFourierModeChange,
+    onExpandPanel,
 }: {
     activePanel: MobilePanel;
     selectedPreset: BlurPreset;
@@ -1558,9 +2031,15 @@ function MobileInspector({
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
     selectedCoordinate: PixelCoordinate | null;
+    fourierMode: FourierScopeMode;
+    fourierAnalysis: SpectrumAnalysisResult | null;
+    fourierStatus: FourierAnalysisStatus;
+    fourierError: string | null;
     onSelectPreset: (preset: BlurPreset) => void;
     blurRadius: number;
     onBlurRadiusChange: (radius: number) => void;
+    onFourierModeChange: (mode: FourierScopeMode) => void;
+    onExpandPanel: (panel: ExpandedPanel) => void;
 }) {
     return (
         <div className={styles.mobileInspector}>
@@ -1571,11 +2050,16 @@ function MobileInspector({
                     onSelectPreset={onSelectPreset}
                     blurRadius={blurRadius}
                     onBlurRadiusChange={onBlurRadiusChange}
+                    onExpand={() => onExpandPanel("blur")}
+                    onExpandKernel={() => onExpandPanel("kernel")}
                 />
             )}
             {activePanel === "kernel" && (
                 <section className={`${styles.panel} ${styles.kernelPanel}`}>
-                    <KernelPanel kernel={kernel} />
+                    <KernelPanel
+                        kernel={kernel}
+                        onExpand={() => onExpandPanel("kernel")}
+                    />
                 </section>
             )}
             {activePanel === "pixels" && (
@@ -1583,11 +2067,19 @@ function MobileInspector({
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
                     selectedCoordinate={selectedCoordinate}
+                    onExpand={() => onExpandPanel("pixels")}
                 />
             )}
             {activePanel === "fourier" && (
                 <section className={`${styles.panel} ${styles.fourierPanel}`}>
-                    <FourierPanel />
+                    <FourierPanel
+                        mode={fourierMode}
+                        onModeChange={onFourierModeChange}
+                        analysis={fourierAnalysis}
+                        status={fourierStatus}
+                        error={fourierError}
+                        onExpand={() => onExpandPanel("fourier")}
+                    />
                 </section>
             )}
         </div>
@@ -1621,29 +2113,86 @@ function MobileNavigation({
 
 function App() {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const sourceLoadRequestRef = useRef(0);
     const [activeMobilePanel, setActiveMobilePanel] =
         useState<MobilePanel>("blur");
-    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [expandedPanel, setExpandedPanel] =
+        useState<ExpandedPanel | null>(null);
+    const [activeTeachingPattern, setActiveTeachingPattern] =
+        useState<TeachingPatternId | null>(
+            INITIAL_TEACHING_PATTERN,
+        );
     const [sourceBuffer, setSourceBuffer] =
-        useState<PixelBuffer | null>(null);
+        useState<PixelBuffer | null>(
+            initialTeachingSource.buffer,
+        );
     const [metadata, setMetadata] =
-        useState<ImageMetadata | null>(null);
+        useState<ImageMetadata | null>(
+            initialTeachingSource.metadata,
+        );
     const [loadError, setLoadError] = useState(false);
     const [resultBuffer, setResultBuffer] =
         useState<PixelBuffer | null>(null);
     const [selectedCoordinate, setSelectedCoordinate] =
-        useState<PixelCoordinate | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
+        useState<PixelCoordinate | null>(() =>
+            clampMicroscopeCenter(
+                {
+                    x: initialTeachingSource.buffer.width / 2,
+                    y: initialTeachingSource.buffer.height / 2,
+                },
+                initialTeachingSource.buffer,
+            ),
+        );
+    const [dividerPercentage, setDividerPercentage] =
+        useState(50);
+    const [isProcessing, setIsProcessing] = useState(true);
     const [processingError, setProcessingError] =
         useState<string | null>(null);
     const [selectedPresetId, setSelectedPresetId] =
         useState<BlurPresetId>("neighbour");
     const [blurRadius, setBlurRadius] = useState<number>(1);
+    const [fourierMode, setFourierMode] =
+        useState<FourierScopeMode>("global");
     const selectedPreset = getPreset(selectedPresetId);
     const selectedKernel = useMemo(
         () => selectedPreset.createKernel(blurRadius),
         [blurRadius, selectedPreset],
     );
+    const {
+        analysis: fourierAnalysis,
+        status: fourierStatus,
+        error: fourierError,
+    } = useFourierAnalysis({
+        sourceBuffer,
+        resultBuffer,
+        kernel: selectedKernel,
+        mode: fourierMode,
+        selectedCoordinate,
+    });
+
+    const activateSource = useCallback((
+        buffer: PixelBuffer,
+        nextMetadata: ImageMetadata,
+        teachingPattern: TeachingPatternId | null,
+    ) => {
+        setResultBuffer(null);
+        setProcessingError(null);
+        setIsProcessing(true);
+        setLoadError(false);
+        setSourceBuffer(buffer);
+        setMetadata(nextMetadata);
+        setActiveTeachingPattern(teachingPattern);
+        setDividerPercentage(50);
+        setSelectedCoordinate(
+            clampMicroscopeCenter(
+                {
+                    x: Math.floor(buffer.width / 2),
+                    y: Math.floor(buffer.height / 2),
+                },
+                buffer,
+            ),
+        );
+    }, []);
 
     const changeBlurRadius = (radius: number) => {
         if (radius === blurRadius) {
@@ -1725,45 +2274,56 @@ function App() {
         };
     }, [selectedKernel, sourceBuffer]);
 
-    useEffect(() => {
-        if (imageFile === null) {
+    const openImagePicker = () => fileInputRef.current?.click();
+    const openImageFromPresentation = () => {
+        setExpandedPanel(null);
+        window.setTimeout(openImagePicker, 0);
+    };
+
+    const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const nextFile = event.currentTarget.files?.[0] ?? null;
+        const requestId = sourceLoadRequestRef.current + 1;
+
+        sourceLoadRequestRef.current = requestId;
+        event.currentTarget.value = "";
+
+        if (nextFile === null) {
             return;
         }
 
-        let ignoreResult = false;
+        setActiveTeachingPattern(null);
+        setSourceBuffer(null);
+        setResultBuffer(null);
+        setSelectedCoordinate(null);
+        setMetadata(null);
+        setLoadError(false);
+        setProcessingError(null);
+        setIsProcessing(false);
 
-        void decodeImageFile(imageFile)
+        void decodeImageFile(nextFile)
             .then((decodedImage) => {
-                if (ignoreResult) {
+                if (sourceLoadRequestRef.current !== requestId) {
                     return;
                 }
 
                 const { buffer } = decodedImage;
 
-                setResultBuffer(null);
-                setProcessingError(null);
-                setIsProcessing(true);
-                setSourceBuffer(buffer);
-                setSelectedCoordinate(
-                    clampMicroscopeCenter(
-                        {
-                            x: Math.floor(buffer.width / 2),
-                            y: Math.floor(buffer.height / 2),
-                        },
-                        buffer,
-                    ),
+                activateSource(
+                    buffer,
+                    {
+                        name: nextFile.name,
+                        width: buffer.width,
+                        height: buffer.height,
+                        sourceWidth: decodedImage.sourceWidth,
+                        sourceHeight: decodedImage.sourceHeight,
+                        size: nextFile.size,
+                        source: "file",
+                    },
+                    null,
                 );
-                setMetadata({
-                    name: imageFile.name,
-                    width: buffer.width,
-                    height: buffer.height,
-                    sourceWidth: decodedImage.sourceWidth,
-                    sourceHeight: decodedImage.sourceHeight,
-                    size: imageFile.size,
-                });
             })
             .catch(() => {
-                if (ignoreResult) {
+                if (sourceLoadRequestRef.current !== requestId) {
                     return;
                 }
 
@@ -1771,37 +2331,31 @@ function App() {
                 setMetadata(null);
                 setLoadError(true);
             });
+    };
 
-        return () => {
-            ignoreResult = true;
-        };
-    }, [imageFile]);
+    const selectTeachingPattern = (id: TeachingPatternId) => {
+        sourceLoadRequestRef.current += 1;
 
-    const openImagePicker = () => fileInputRef.current?.click();
+        const source = createTeachingSource(id);
 
-    const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const nextFile = event.currentTarget.files?.[0] ?? null;
-
-        setSourceBuffer(null);
-        setResultBuffer(null);
-        setSelectedCoordinate(null);
-        setMetadata(null);
-        setLoadError(false);
-        setProcessingError(null);
-        setIsProcessing(false);
-        setImageFile(nextFile);
-        event.currentTarget.value = "";
+        activateSource(
+            source.buffer,
+            source.metadata,
+            id,
+        );
     };
 
     const resetImage = () => {
-        setImageFile(null);
+        sourceLoadRequestRef.current += 1;
         setSourceBuffer(null);
         setResultBuffer(null);
         setSelectedCoordinate(null);
         setMetadata(null);
+        setActiveTeachingPattern(null);
         setLoadError(false);
         setProcessingError(null);
         setIsProcessing(false);
+        setDividerPercentage(50);
     };
 
     const selectPreset = (preset: BlurPreset) => {
@@ -1815,6 +2369,60 @@ function App() {
         setSelectedPresetId(preset.id);
     };
 
+    const expandedContent =
+        expandedPanel === "image" ? (
+            <ImageStage
+                sourceBuffer={sourceBuffer}
+                resultBuffer={resultBuffer}
+                selectedCoordinate={selectedCoordinate}
+                onSelectedCoordinateChange={setSelectedCoordinate}
+                metadata={metadata}
+                loadError={loadError}
+                isProcessing={isProcessing}
+                processingError={processingError}
+                processingLabel={selectedPreset.label}
+                dividerPercentage={dividerPercentage}
+                onDividerPercentageChange={setDividerPercentage}
+                onOpenImage={openImageFromPresentation}
+                onSelectTeachingPattern={selectTeachingPattern}
+            />
+        ) : expandedPanel === "blur" ? (
+            <BlurPanel
+                selectedPreset={selectedPreset}
+                kernel={selectedKernel}
+                onSelectPreset={selectPreset}
+                blurRadius={blurRadius}
+                onBlurRadiusChange={changeBlurRadius}
+                onExpandKernel={() => setExpandedPanel("kernel")}
+                presentation
+            />
+        ) : expandedPanel === "kernel" ? (
+            <section className={`${styles.panel} ${styles.kernelPanel}`}>
+                <KernelPanel
+                    kernel={selectedKernel}
+                    presentation
+                />
+            </section>
+        ) : expandedPanel === "pixels" ? (
+            <PixelPanel
+                sourceBuffer={sourceBuffer}
+                resultBuffer={resultBuffer}
+                selectedCoordinate={selectedCoordinate}
+                presentation
+            />
+        ) : expandedPanel === "fourier" ? (
+            <section className={`${styles.panel} ${styles.fourierPanel}`}>
+                <FourierPanel
+                    mode={fourierMode}
+                    onModeChange={setFourierMode}
+                    analysis={fourierAnalysis}
+                    status={fourierStatus}
+                    error={fourierError}
+                    presentation
+                />
+            </section>
+        ) : null;
+
     return (
         <div className={styles.app}>
             <input
@@ -1827,6 +2435,8 @@ function App() {
             />
             <TopBar
                 hasImage={sourceBuffer !== null}
+                activeTeachingPattern={activeTeachingPattern}
+                onSelectTeachingPattern={selectTeachingPattern}
                 onOpenImage={openImagePicker}
                 onReset={resetImage}
             />
@@ -1841,7 +2451,11 @@ function App() {
                     isProcessing={isProcessing}
                     processingError={processingError}
                     processingLabel={selectedPreset.label}
+                    dividerPercentage={dividerPercentage}
+                    onDividerPercentageChange={setDividerPercentage}
+                    onExpand={() => setExpandedPanel("image")}
                     onOpenImage={openImagePicker}
+                    onSelectTeachingPattern={selectTeachingPattern}
                 />
                 <div className={styles.desktopControls}>
                     <BlurPanel
@@ -1850,6 +2464,8 @@ function App() {
                         onSelectPreset={selectPreset}
                         blurRadius={blurRadius}
                         onBlurRadiusChange={changeBlurRadius}
+                        onExpand={() => setExpandedPanel("blur")}
+                        onExpandKernel={() => setExpandedPanel("kernel")}
                     />
                 </div>
                 <div className={styles.desktopPixel}>
@@ -1857,11 +2473,19 @@ function App() {
                         sourceBuffer={sourceBuffer}
                         resultBuffer={resultBuffer}
                         selectedCoordinate={selectedCoordinate}
+                        onExpand={() => setExpandedPanel("pixels")}
                     />
                 </div>
                 <div className={styles.desktopFourier}>
                     <section className={`${styles.panel} ${styles.fourierPanel}`}>
-                        <FourierPanel />
+                        <FourierPanel
+                            mode={fourierMode}
+                            onModeChange={setFourierMode}
+                            analysis={fourierAnalysis}
+                            status={fourierStatus}
+                            error={fourierError}
+                            onExpand={() => setExpandedPanel("fourier")}
+                        />
                     </section>
                 </div>
                 <MobileInspector
@@ -1871,15 +2495,30 @@ function App() {
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
                     selectedCoordinate={selectedCoordinate}
+                    fourierMode={fourierMode}
+                    fourierAnalysis={fourierAnalysis}
+                    fourierStatus={fourierStatus}
+                    fourierError={fourierError}
                     onSelectPreset={selectPreset}
                     blurRadius={blurRadius}
                     onBlurRadiusChange={changeBlurRadius}
+                    onFourierModeChange={setFourierMode}
+                    onExpandPanel={setExpandedPanel}
                 />
             </main>
             <MobileNavigation
                 activePanel={activeMobilePanel}
                 onChange={setActiveMobilePanel}
             />
+            {expandedPanel !== null && expandedContent !== null && (
+                <FullscreenPanel
+                    panel={expandedPanel}
+                    title={expandedPanelTitles[expandedPanel]}
+                    onClose={() => setExpandedPanel(null)}
+                >
+                    {expandedContent}
+                </FullscreenPanel>
+            )}
         </div>
     );
 }

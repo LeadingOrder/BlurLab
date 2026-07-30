@@ -22,4 +22,18 @@ export {
     type PixelCoordinate,
     type PixelBuffer,
 } from "./pixelBuffer";
+export {
+    createTeachingPattern,
+    DEFAULT_TEACHING_PATTERN_SIZE,
+    TEACHING_PATTERN_IDS,
+    type TeachingPatternId,
+} from "./teachingPatterns";
 export { applyKernel } from "./transforms/applyKernel";
+export {
+    analyzeSpectrum,
+    SPECTRUM_IMPLEMENTATION_READY,
+    type FourierScopeMode,
+    type SpectrumAnalysisRequest,
+    type SpectrumAnalysisResult,
+    type SpectrumWindow,
+} from "./spectrum";

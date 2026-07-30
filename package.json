@@ -10,8 +10,9 @@
         "build": "pnpm --filter @blurlab/web build",
         "preview": "pnpm --filter @blurlab/web preview",
         "lint": "pnpm --filter @blurlab/web lint",
+        "test": "pnpm --filter @blurlab/engine test && pnpm --filter @blurlab/web test",
         "typecheck": "pnpm --filter @blurlab/web exec tsc -b --pretty",
-        "check": "pnpm lint && pnpm typecheck && pnpm build",
+        "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
         "verify:repo": "bash scripts/verify_repo.sh"
     }
 }

@@ -1,6 +1,10 @@
 /// <reference lib="webworker" />
 
-import { analyzeSpectrum } from "@blurlab/engine";
+import {
+    analyzePreparedSpectrum,
+    prepareSpectrumSource,
+    type PreparedSpectrumSource,
+} from "@blurlab/engine";
 
 import type {
     FourierWorkerRequest,
@@ -10,20 +14,49 @@ import type {
 const workerScope =
     self as unknown as DedicatedWorkerGlobalScope;
 
+let preparedSource: PreparedSpectrumSource | null = null;
+let preparedSourceRevision = -1;
+
 workerScope.onmessage = (
     event: MessageEvent<FourierWorkerRequest>,
 ) => {
+    const request = event.data;
+
     try {
-        const result = analyzeSpectrum(event.data);
+        if (request.type === "set-source") {
+            preparedSource = prepareSpectrumSource(
+                request.source,
+                request.maximumDimension,
+            );
+            preparedSourceRevision =
+                request.sourceRevision;
+            return;
+        }
+
+        if (
+            preparedSource === null ||
+            preparedSourceRevision !==
+                request.sourceRevision
+        ) {
+            throw new Error(
+                "The Fourier source changed before analysis could begin.",
+            );
+        }
+
+        const result = analyzePreparedSpectrum(
+            preparedSource,
+            request.kernel,
+            request.decibelFloor,
+        );
         const response: FourierWorkerResponse = {
             ok: true,
+            requestId: request.requestId,
             result,
         };
 
         workerScope.postMessage(
             response,
             [
-                result.angularFrequencies.buffer,
                 result.inputDecibels.buffer,
                 result.kernelDecibels.buffer,
                 result.outputDecibels.buffer,
@@ -32,6 +65,7 @@ workerScope.onmessage = (
     } catch (error) {
         const response: FourierWorkerResponse = {
             ok: false,
+            requestId: request.requestId,
             message:
                 error instanceof Error
                     ? error.message

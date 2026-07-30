@@ -1,0 +1,616 @@
+.panelContent {
+    display: grid;
+    min-width: 0;
+    height: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+}
+
+.panelContent[data-presentation="true"] {
+    min-height: 100%;
+    padding: clamp(12px, 1.4vw, 20px);
+}
+
+.equationBadge {
+    padding: 5px 8px;
+    border: 1px solid rgba(46, 235, 255, 0.42);
+    border-radius: 7px;
+    color: var(--blurlab-color-frequency);
+    background: var(--blurlab-color-frequency-background);
+    box-shadow:
+        inset 0 0 12px rgba(46, 235, 255, 0.08),
+        0 0 16px rgba(46, 235, 255, 0.16);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+    text-shadow: 0 0 10px rgba(46, 235, 255, 0.66);
+}
+
+.statusRow {
+    display: grid;
+    min-height: 32px;
+    align-items: center;
+    margin-top: 8px;
+    gap: 12px;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    grid-template-columns:
+        minmax(0, 1fr)
+        auto
+        minmax(0, 1fr);
+}
+
+.statusRow span:last-child {
+    justify-self: end;
+    text-align: right;
+}
+
+.zoomControls {
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    border: 1px solid rgba(46, 235, 255, 0.16);
+    border-radius: 7px;
+    background: rgba(3, 3, 5, 0.48);
+    gap: 2px;
+}
+
+.zoomControls > span {
+    padding: 0 5px;
+    color: var(--blurlab-color-ink-disabled);
+    font-size: 7px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.zoomControls button {
+    min-width: 30px;
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: var(--blurlab-color-ink-muted);
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 8px;
+    transition:
+        color var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        border-color var(--blurlab-duration-control)
+            var(--blurlab-easing-standard),
+        background var(--blurlab-duration-control)
+            var(--blurlab-easing-standard);
+}
+
+.zoomControls button:hover:not(:disabled) {
+    border-color: rgba(46, 235, 255, 0.26);
+    color: var(--blurlab-color-frequency);
+}
+
+.zoomControls button[data-selected="true"] {
+    border-color: rgba(46, 235, 255, 0.48);
+    color: var(--blurlab-color-frequency);
+    background: rgba(46, 235, 255, 0.12);
+    box-shadow:
+        inset 0 0 10px rgba(46, 235, 255, 0.08),
+        0 0 10px rgba(46, 235, 255, 0.15);
+    text-shadow: 0 0 8px rgba(46, 235, 255, 0.72);
+}
+
+.zoomControls button:focus-visible {
+    outline: none;
+    box-shadow: var(--blurlab-focus-ring);
+}
+
+.zoomControls button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.spectrumGrid {
+    display: grid;
+    min-height: 170px;
+    align-items: start;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.spectrumFigure {
+    position: relative;
+    min-width: 0;
+    margin: 0;
+    padding-left: 13px;
+}
+
+.heatmapGroup {
+    position: relative;
+}
+
+.spectrumFigure figcaption {
+    display: grid;
+    min-width: 0;
+    min-height: 36px;
+    align-items: baseline;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 5px;
+}
+
+.spectrumFigure figcaption span {
+    color: var(--blurlab-color-ink);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.spectrumFigure figcaption strong {
+    color: var(--series-color);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 12px;
+    text-shadow:
+        0 0 8px var(--series-color),
+        0 0 16px var(--series-color);
+}
+
+.spectrumFigure figcaption small {
+    overflow: hidden;
+    color: var(--blurlab-color-ink-disabled);
+    font-size: 9px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.spectrumFigure[data-tone="input"] {
+    --series-color: #7c5cff;
+}
+
+.spectrumFigure[data-tone="kernel"] {
+    --series-color: #ff3bd4;
+}
+
+.spectrumFigure[data-tone="output"] {
+    --series-color: #2eebff;
+}
+
+.heatmap {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid color-mix(
+        in srgb,
+        var(--series-color) 28%,
+        transparent
+    );
+    border-radius: 8px;
+    background: var(--blurlab-color-stage);
+    box-shadow:
+        inset 0 0 24px color-mix(
+            in srgb,
+            var(--series-color) 7%,
+            transparent
+        ),
+        0 0 18px color-mix(
+            in srgb,
+            var(--series-color) 8%,
+            transparent
+        );
+    cursor: crosshair;
+}
+
+.heatmap:focus-visible {
+    outline: none;
+    box-shadow:
+        var(--blurlab-focus-ring),
+        0 0 22px color-mix(
+            in srgb,
+            var(--series-color) 18%,
+            transparent
+        );
+}
+
+.heatmap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+}
+
+.verticalCrosshair,
+.horizontalCrosshair {
+    position: absolute;
+    z-index: 2;
+    display: block;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.58);
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.55);
+}
+
+.verticalCrosshair {
+    top: 0;
+    bottom: 0;
+    width: 1px;
+}
+
+.horizontalCrosshair {
+    right: 0;
+    left: 0;
+    height: 1px;
+}
+
+.dcMarker {
+    position: absolute;
+    z-index: 4;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.selectedBin {
+    position: absolute;
+    z-index: 3;
+    display: block;
+    border: 1px solid var(--series-color);
+    border-radius: 2px;
+    background: color-mix(
+        in srgb,
+        var(--series-color) 10%,
+        transparent
+    );
+    box-shadow:
+        0 0 5px var(--series-color),
+        inset 0 0 4px color-mix(
+            in srgb,
+            var(--series-color) 45%,
+            transparent
+        );
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+.horizontalAxis {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+}
+
+.verticalAxis {
+    position: absolute;
+    top: 0;
+    bottom: 18px;
+    left: -13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+    writing-mode: vertical-rl;
+}
+
+.profileStack {
+    display: grid;
+    margin-top: 10px;
+    gap: 9px;
+}
+
+.profile {
+    min-width: 0;
+    padding: 7px 7px 5px;
+    border: 1px solid color-mix(
+        in srgb,
+        var(--series-color) 20%,
+        transparent
+    );
+    border-radius: 7px;
+    background:
+        linear-gradient(
+            180deg,
+            color-mix(
+                in srgb,
+                var(--series-color) 4%,
+                transparent
+            ),
+            transparent
+        ),
+        rgba(3, 3, 5, 0.42);
+    box-shadow:
+        inset 0 0 14px color-mix(
+            in srgb,
+            var(--series-color) 4%,
+            transparent
+        ),
+        0 0 12px color-mix(
+            in srgb,
+            var(--series-color) 5%,
+            transparent
+        );
+}
+
+.profileHeading {
+    display: grid;
+    min-width: 0;
+    align-items: baseline;
+    margin-bottom: 4px;
+    font-family: var(--blurlab-font-family-mono);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+}
+
+.profileLabel {
+    color: var(--series-color);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 8px var(--series-color);
+    text-transform: uppercase;
+}
+
+.profileHeading small {
+    overflow: hidden;
+    color: var(--blurlab-color-ink-disabled);
+    font-size: 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profileValue {
+    color: var(--blurlab-color-ink-muted);
+    font-size: 7px;
+}
+
+.profileChart {
+    position: relative;
+    min-width: 0;
+    padding-left: 23px;
+}
+
+.profileChart canvas {
+    display: block;
+    width: 100%;
+    height: 58px;
+    border: 1px solid color-mix(
+        in srgb,
+        var(--series-color) 13%,
+        transparent
+    );
+    border-radius: 4px;
+    background: rgba(3, 3, 5, 0.68);
+}
+
+.profileDecibelAxis {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    left: 0;
+    display: flex;
+    width: 19px;
+    justify-content: space-between;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 6px;
+    flex-direction: column;
+    text-align: right;
+}
+
+.profileFrequencyAxis {
+    display: flex;
+    justify-content: space-between;
+    margin: 3px 1px 0 24px;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 7px;
+}
+
+.profileFrequencyAxis span:nth-child(2) {
+    color: color-mix(
+        in srgb,
+        var(--series-color) 72%,
+        var(--blurlab-color-ink-muted)
+    );
+}
+
+.emptySpectrum {
+    display: grid;
+    min-height: 150px;
+    place-items: center;
+    border: 1px solid rgba(46, 235, 255, 0.18);
+    border-radius: 10px;
+    color: var(--blurlab-color-frequency);
+    background:
+        radial-gradient(
+            circle at 50% 50%,
+            rgba(46, 235, 255, 0.08),
+            transparent 45%
+        ),
+        var(--blurlab-color-stage);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 9px;
+    grid-column: 1 / -1;
+}
+
+.binReadout {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    margin-top: 8px;
+    padding: 7px 9px;
+    overflow: hidden;
+    border: 1px solid rgba(46, 235, 255, 0.14);
+    border-radius: 7px;
+    color: var(--blurlab-color-ink-muted);
+    background: rgba(3, 3, 5, 0.4);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    gap: 10px;
+    white-space: nowrap;
+}
+
+.binReadout span[data-tone="input"] {
+    color: #9b84ff;
+}
+
+.binReadout span[data-tone="kernel"] {
+    color: #ff76df;
+}
+
+.binReadout span[data-tone="output"] {
+    color: #72f4ff;
+}
+
+.scale {
+    display: grid;
+    align-items: center;
+    margin-top: 8px;
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 7px;
+    grid-template-columns: auto minmax(40px, 1fr) auto;
+    gap: 7px;
+}
+
+.scale > span:nth-child(2) {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(
+        90deg,
+        #030305,
+        #777b89 55%,
+        #e8fdff
+    );
+    box-shadow: 0 0 10px rgba(46, 235, 255, 0.12);
+}
+
+.boundaryNote {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 9px;
+    gap: 12px;
+}
+
+.boundaryNote > span {
+    flex: 0 0 auto;
+    padding: 4px 7px;
+    border: 1px solid rgba(46, 235, 255, 0.18);
+    border-radius: 6px;
+    color: var(--blurlab-color-frequency);
+    background: var(--blurlab-color-frequency-background);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.boundaryNote p {
+    margin: 0;
+    color: var(--blurlab-color-ink-muted);
+    font-size: 9px;
+    line-height: 1.4;
+    text-align: right;
+}
+
+.panelContent[data-presentation="true"] .spectrumGrid {
+    min-height: 0;
+    align-items: center;
+}
+
+.panelContent[data-presentation="true"] .spectrumFigure {
+    width: min(100%, 38vh);
+    justify-self: center;
+}
+
+.panelContent[data-presentation="true"] .profileStack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panelContent[data-presentation="true"] .profileChart canvas {
+    height: clamp(58px, 7vh, 72px);
+}
+
+.panelContent[data-presentation="true"] .profileLabel,
+.panelContent[data-presentation="true"] .profileValue {
+    font-size: 9px;
+}
+
+.panelContent[data-presentation="true"] .profileHeading small,
+.panelContent[data-presentation="true"] .profileFrequencyAxis {
+    font-size: 8px;
+}
+
+@media (max-width: 860px) {
+    .spectrumGrid {
+        min-height: 230px;
+    }
+
+    .spectrumFigure figcaption {
+        grid-template-columns: auto auto;
+    }
+
+    .spectrumFigure figcaption small {
+        display: none;
+    }
+}
+
+@media (max-width: 520px) {
+    .panelContent {
+        height: auto;
+        grid-template-rows: auto;
+    }
+
+    .spectrumGrid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .statusRow {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .statusRow > span:last-child {
+        grid-row: 1;
+        grid-column: 2;
+    }
+
+    .zoomControls {
+        grid-row: 2;
+        grid-column: 1 / -1;
+        justify-self: center;
+    }
+
+    .spectrumFigure {
+        width: min(100%, 330px);
+        justify-self: center;
+    }
+
+    .spectrumFigure figcaption {
+        grid-template-columns: auto auto minmax(0, 1fr);
+    }
+
+    .spectrumFigure figcaption small {
+        display: block;
+    }
+
+    .binReadout {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+
+    .boundaryNote {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .boundaryNote p {
+        text-align: left;
+    }
+}

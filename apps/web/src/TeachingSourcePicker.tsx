@@ -85,7 +85,11 @@ export function TeachingSourcePicker({
     const detailsRef = useRef<HTMLDetailsElement>(null);
 
     return (
-        <details ref={detailsRef} className={styles.picker}>
+        <details
+            ref={detailsRef}
+            className={styles.picker}
+            data-has-active-example={activeId !== null}
+        >
             <summary>Example Images</summary>
             <div className={styles.popover}>
                 <div className={styles.popoverHeader}>

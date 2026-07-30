@@ -5,10 +5,8 @@ import {
     useRef,
     useState,
     type ChangeEvent,
-    type CSSProperties,
     type KeyboardEvent,
     type PointerEvent,
-    type ReactNode,
 } from "react";
 
 import {
@@ -16,8 +14,6 @@ import {
     createHorizontalNeighbourBlurKernel,
     createTeachingPattern,
     pixelCoordinateToOffset,
-    SPECTRUM_IMPLEMENTATION_READY,
-    type FourierScopeMode,
     type Kernel,
     type PixelCoordinate,
     type PixelBuffer,
@@ -31,18 +27,25 @@ import {
     type ExpandedPanel,
 } from "./FullscreenPanel";
 import {
+    FourierPanel,
+} from "./FourierPanel";
+import {
+    useFourierAnalysis,
+    type FourierAnalysisStatus,
+} from "./useFourierAnalysis";
+import {
     TeachingSourceGrid,
     TeachingSourcePicker,
 } from "./TeachingSourcePicker";
+import {
+    ExpandButton,
+    PanelHeading,
+} from "./PanelHeading";
 import { teachingSources } from "./teachingSources";
 import type {
     BlurWorkerRequest,
     BlurWorkerResponse,
 } from "./blurWorkerProtocol";
-import type {
-    FourierWorkerRequest,
-    FourierWorkerResponse,
-} from "./fourierWorkerProtocol";
 import {
     decodeImageFile,
     pixelBufferToCanvas,
@@ -113,7 +116,7 @@ const mobilePanels: {
         { id: "kernel", label: "Kernel", index: "02" },
         { id: "pixels", label: "Pixels", index: "03" },
         { id: "fourier", label: "Fourier", index: "04" },
-];
+    ];
 
 const expandedPanelTitles: Record<ExpandedPanel, string> = {
     image: "Image stage",
@@ -156,73 +159,6 @@ const initialTeachingSource = createTeachingSource(
     INITIAL_TEACHING_PATTERN,
 );
 
-function PanelHeading({
-    eyebrow,
-    title,
-    accent,
-    aside,
-    onExpand,
-}: {
-    eyebrow: string;
-    title: string;
-    accent: "primary" | "spatial" | "pixel" | "frequency";
-    aside?: ReactNode;
-    onExpand?: () => void;
-}) {
-    return (
-        <header className={styles.panelHeading}>
-            <div>
-                <p
-                    className={styles.eyebrow}
-                    data-accent={accent}
-                >
-                    {eyebrow}
-                </p>
-                <h2>{title}</h2>
-            </div>
-            {(aside !== undefined || onExpand !== undefined) && (
-                <div className={styles.panelHeadingActions}>
-                    {aside}
-                    {onExpand !== undefined && (
-                        <ExpandButton
-                            label={title}
-                            onClick={onExpand}
-                        />
-                    )}
-                </div>
-            )}
-        </header>
-    );
-}
-
-function ExpandButton({
-    label,
-    onClick,
-}: {
-    label: string;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            className={styles.expandButton}
-            type="button"
-            aria-label={`Open ${label} in presentation view`}
-            title={`Present ${label}`}
-            onClick={onClick}
-        >
-            <span
-                className={styles.expandGlyph}
-                aria-hidden="true"
-            >
-                <span />
-                <span />
-                <span />
-                <span />
-            </span>
-        </button>
-    );
-}
-
 function TopBar({
     hasImage,
     activeTeachingPattern,
@@ -251,10 +187,6 @@ function TopBar({
             </div>
 
             <div className={styles.topBarActions}>
-                <TeachingSourcePicker
-                    activeId={activeTeachingPattern}
-                    onSelect={onSelectTeachingPattern}
-                />
                 <span className={styles.localBadge}>
                     <span aria-hidden="true" />
                     Local only
@@ -267,6 +199,10 @@ function TopBar({
                 >
                     Reset
                 </button>
+                <TeachingSourcePicker
+                    activeId={activeTeachingPattern}
+                    onSelect={onSelectTeachingPattern}
+                />
                 <button
                     className={styles.openButton}
                     type="button"
@@ -546,7 +482,7 @@ function ImageStage({
 
             setStageSize((currentSize) => (
                 currentSize.width === width &&
-                currentSize.height === height
+                    currentSize.height === height
                     ? currentSize
                     : { width, height }
             ));
@@ -718,7 +654,7 @@ function ImageStage({
 
     const selectionStyle =
         fittedImageRect === null ||
-        selectedCoordinate === null
+            selectedCoordinate === null
             ? null
             : {
                 left:
@@ -936,7 +872,7 @@ function ImageStage({
                             </span>
                             <span>
                                 {metadata.width !== metadata.sourceWidth ||
-                                metadata.height !== metadata.sourceHeight
+                                    metadata.height !== metadata.sourceHeight
                                     ? `scaled from ${metadata.sourceWidth} × ${metadata.sourceHeight}`
                                     : isProcessing
                                         ? "kernel · running"
@@ -1172,7 +1108,7 @@ function CompactKernelWeight({
             (candidate) => candidate === weight,
         ) &&
         Math.abs(weight * kernel.weights.length - 1) <
-            Number.EPSILON * kernel.weights.length;
+        Number.EPSILON * kernel.weights.length;
 
     return (
         <div className={styles.compactKernelWeight}>
@@ -1387,7 +1323,7 @@ function PixelGrid({
                         }
                         title={
                             sample.coordinate === null ||
-                            sample.rgba === null
+                                sample.rgba === null
                                 ? undefined
                                 : `x ${sample.coordinate.x}, y ${sample.coordinate.y} · RGBA ${formatRgba(sample.rgba)}`
                         }
@@ -1413,12 +1349,12 @@ function PixelPanel({
 }) {
     const selectedSource =
         sourceBuffer === null ||
-        selectedCoordinate === null
+            selectedCoordinate === null
             ? null
             : readPixel(sourceBuffer, selectedCoordinate);
     const selectedResult =
         resultBuffer === null ||
-        selectedCoordinate === null
+            selectedCoordinate === null
             ? null
             : readPixel(resultBuffer, selectedCoordinate);
 
@@ -1557,457 +1493,6 @@ function KernelPanel({
     );
 }
 
-const plotSeries = [
-    {
-        label: "Input · X",
-        detail: "source spectrum",
-        color: "#7c5cff",
-        field: "inputDecibels",
-    },
-    {
-        label: "Kernel · H",
-        detail: "transfer function",
-        color: "#ff3bd4",
-        field: "kernelDecibels",
-    },
-    {
-        label: "Output · Y",
-        detail: "filtered spectrum",
-        color: "#2eebff",
-        field: "outputDecibels",
-    },
-] as const;
-
-const FOURIER_LOCAL_SIZE = 64;
-const FOURIER_MAXIMUM_BIN_COUNT = 257;
-const FOURIER_DECIBEL_FLOOR = -60;
-
-type FourierAnalysisStatus =
-    | "unavailable"
-    | "empty"
-    | "waiting"
-    | "analyzing"
-    | "ready"
-    | "error";
-
-function drawFrequencyPlot(
-    canvas: HTMLCanvasElement,
-    analysis: SpectrumAnalysisResult | null,
-) {
-    const bounds = canvas.getBoundingClientRect();
-
-    if (bounds.width === 0 || bounds.height === 0) {
-        return;
-    }
-
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    const width = Math.round(bounds.width);
-    const height = Math.round(bounds.height);
-
-    canvas.width = Math.round(width * pixelRatio);
-    canvas.height = Math.round(height * pixelRatio);
-
-    const context = canvas.getContext("2d");
-
-    if (context === null) {
-        return;
-    }
-
-    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-    context.clearRect(0, 0, width, height);
-
-    const left = 34;
-    const right = 14;
-    const top = 18;
-    const bottom = 28;
-    const plotWidth = width - left - right;
-    const plotHeight = height - top - bottom;
-
-    context.strokeStyle = "rgba(255, 255, 255, 0.075)";
-    context.lineWidth = 1;
-
-    for (let index = 0; index <= 4; index += 1) {
-        const y = top + (plotHeight * index) / 4;
-        context.beginPath();
-        context.moveTo(left, y);
-        context.lineTo(width - right, y);
-        context.stroke();
-    }
-
-    for (let index = 0; index <= 6; index += 1) {
-        const x = left + (plotWidth * index) / 6;
-        context.beginPath();
-        context.moveTo(x, top);
-        context.lineTo(x, height - bottom);
-        context.stroke();
-    }
-
-    context.fillStyle = "rgba(162, 164, 178, 0.72)";
-    context.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
-    context.textAlign = "right";
-
-    for (let index = 0; index <= 3; index += 1) {
-        const decibels =
-            FOURIER_DECIBEL_FLOOR * index / 3;
-        const y = top + plotHeight * index / 3;
-
-        context.fillText(
-            `${decibels.toFixed(0)}`,
-            left - 7,
-            y + 3,
-        );
-    }
-
-    context.textAlign = "center";
-    context.fillText("−π", left, height - 9);
-    context.fillText("0", left + plotWidth / 2, height - 9);
-    context.fillText("+π", width - right, height - 9);
-
-    if (analysis === null) {
-        return;
-    }
-
-    plotSeries.forEach((series) => {
-        const values = analysis[series.field];
-
-        context.save();
-        context.strokeStyle = series.color;
-        context.lineWidth = 2;
-        context.lineJoin = "round";
-        context.lineCap = "round";
-        context.shadowColor = series.color;
-        context.shadowBlur = 13;
-        context.beginPath();
-
-        values.forEach((value, index) => {
-            const x =
-                left +
-                (plotWidth * index) / Math.max(1, values.length - 1);
-            const normalizedValue =
-                (value - FOURIER_DECIBEL_FLOOR) /
-                -FOURIER_DECIBEL_FLOOR;
-            const y =
-                top +
-                plotHeight *
-                (1 - Math.min(1, Math.max(0, normalizedValue)));
-
-            if (index === 0) {
-                context.moveTo(x, y);
-            } else {
-                context.lineTo(x, y);
-            }
-        });
-
-        context.stroke();
-        context.restore();
-    });
-}
-
-function FrequencyPlot({
-    analysis,
-    statusLabel,
-}: {
-    analysis: SpectrumAnalysisResult | null;
-    statusLabel: string;
-}) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-
-        if (canvas === null) {
-            return;
-        }
-
-        const draw = () => drawFrequencyPlot(canvas, analysis);
-        const observer = new ResizeObserver(draw);
-
-        observer.observe(canvas);
-        draw();
-        return () => observer.disconnect();
-    }, [analysis]);
-
-    return (
-        <div className={styles.frequencyPlot}>
-            <canvas
-                ref={canvasRef}
-                aria-label="Combined preview of input spectrum, kernel transfer function, and output spectrum"
-            />
-            {analysis === null && (
-                <div className={styles.frequencyPlotStatus}>
-                    {statusLabel}
-                </div>
-            )}
-            <div className={styles.frequencyAxisLabel}>spatial frequency</div>
-        </div>
-    );
-}
-
-function useFourierAnalysis({
-    sourceBuffer,
-    resultBuffer,
-    kernel,
-    mode,
-    selectedCoordinate,
-}: {
-    sourceBuffer: PixelBuffer | null;
-    resultBuffer: PixelBuffer | null;
-    kernel: Kernel;
-    mode: FourierScopeMode;
-    selectedCoordinate: PixelCoordinate | null;
-}): {
-    analysis: SpectrumAnalysisResult | null;
-    status: FourierAnalysisStatus;
-    error: string | null;
-} {
-    const [analysis, setAnalysis] =
-        useState<SpectrumAnalysisResult | null>(null);
-    const [status, setStatus] =
-        useState<FourierAnalysisStatus>("unavailable");
-    const [error, setError] = useState<string | null>(null);
-    const centerX =
-        mode === "local"
-            ? selectedCoordinate?.x ?? null
-            : null;
-    const centerY =
-        mode === "local"
-            ? selectedCoordinate?.y ?? null
-            : null;
-
-    useEffect(() => {
-        if (
-            !SPECTRUM_IMPLEMENTATION_READY ||
-            sourceBuffer === null ||
-            resultBuffer === null ||
-            (mode === "local" &&
-                (centerX === null || centerY === null))
-        ) {
-            return;
-        }
-
-        let ignoreResult = false;
-        let worker: Worker | null = null;
-        const delay = mode === "local" ? 80 : 0;
-        const timeout = window.setTimeout(() => {
-            setAnalysis(null);
-            setError(null);
-            setStatus("analyzing");
-
-            const workerSource: PixelBuffer = {
-                ...sourceBuffer,
-                data: sourceBuffer.data.slice(),
-            };
-            const workerResult: PixelBuffer = {
-                ...resultBuffer,
-                data: resultBuffer.data.slice(),
-            };
-            const workerKernel: Kernel = {
-                ...kernel,
-                weights: kernel.weights.slice(),
-            };
-            const request: FourierWorkerRequest = {
-                source: workerSource,
-                result: workerResult,
-                kernel: workerKernel,
-                mode,
-                center:
-                    centerX === null || centerY === null
-                        ? null
-                        : { x: centerX, y: centerY },
-                localSize: FOURIER_LOCAL_SIZE,
-                maximumBinCount: FOURIER_MAXIMUM_BIN_COUNT,
-                decibelFloor: FOURIER_DECIBEL_FLOOR,
-            };
-
-            worker = new Worker(
-                new URL("./fourierWorker.ts", import.meta.url),
-                { type: "module" },
-            );
-            worker.onmessage = (
-                event: MessageEvent<FourierWorkerResponse>,
-            ) => {
-                if (ignoreResult) {
-                    return;
-                }
-
-                if (event.data.ok) {
-                    setAnalysis(event.data.result);
-                    setStatus("ready");
-                } else {
-                    setError(event.data.message);
-                    setStatus("error");
-                }
-
-                worker?.terminate();
-            };
-            worker.onerror = () => {
-                if (ignoreResult) {
-                    return;
-                }
-
-                setError(
-                    "The Fourier worker stopped before producing a spectrum.",
-                );
-                setStatus("error");
-                worker?.terminate();
-            };
-            worker.postMessage(
-                request,
-                [
-                    workerSource.data.buffer as ArrayBuffer,
-                    workerResult.data.buffer as ArrayBuffer,
-                    workerKernel.weights.buffer as ArrayBuffer,
-                ],
-            );
-        }, delay);
-
-        return () => {
-            ignoreResult = true;
-            window.clearTimeout(timeout);
-            worker?.terminate();
-        };
-    }, [
-        centerX,
-        centerY,
-        kernel,
-        mode,
-        resultBuffer,
-        sourceBuffer,
-    ]);
-
-    if (!SPECTRUM_IMPLEMENTATION_READY) {
-        return {
-            analysis: null,
-            status: "unavailable",
-            error: null,
-        };
-    }
-
-    if (sourceBuffer === null) {
-        return {
-            analysis: null,
-            status: "empty",
-            error: null,
-        };
-    }
-
-    if (
-        resultBuffer === null ||
-        (mode === "local" &&
-            (centerX === null || centerY === null))
-    ) {
-        return {
-            analysis: null,
-            status: "waiting",
-            error: null,
-        };
-    }
-
-    return { analysis, status, error };
-}
-
-function FourierPanel({
-    mode,
-    onModeChange,
-    analysis,
-    status,
-    error,
-    onExpand,
-    presentation = false,
-}: {
-    mode: FourierScopeMode;
-    onModeChange: (mode: FourierScopeMode) => void;
-    analysis: SpectrumAnalysisResult | null;
-    status: FourierAnalysisStatus;
-    error: string | null;
-    onExpand?: () => void;
-    presentation?: boolean;
-}) {
-    const statusLabel =
-        status === "unavailable"
-            ? "Implement spectrum.ts to activate"
-            : status === "empty"
-                ? "Load an image"
-                : status === "waiting"
-                    ? "Waiting for filtered pixels"
-                    : status === "analyzing"
-                        ? "Analyzing spectrum"
-                        : status === "error"
-                            ? error ?? "Spectrum unavailable"
-                            : analysis === null
-                                ? "Spectrum unavailable"
-                                : `${analysis.mode === "global" ? "Global" : "Local"} · ${analysis.sampleWidth} × ${analysis.sampleHeight}`;
-
-    return (
-        <section
-            className={styles.fourierPanelContent}
-            data-presentation={presentation}
-        >
-            <PanelHeading
-                eyebrow="Frequency response"
-                title="Fourier scope"
-                accent="frequency"
-                aside={<span className={styles.equationBadge}>X × H = Y</span>}
-                onExpand={onExpand}
-            />
-            <div className={styles.fourierControls}>
-                <div
-                    className={styles.scopeModeControl}
-                    aria-label="Fourier analysis region"
-                >
-                    <button
-                        type="button"
-                        data-active={mode === "global"}
-                        aria-pressed={mode === "global"}
-                        onClick={() => onModeChange("global")}
-                    >
-                        Global
-                    </button>
-                    <button
-                        type="button"
-                        data-active={mode === "local"}
-                        aria-pressed={mode === "local"}
-                        onClick={() => onModeChange("local")}
-                    >
-                        Local
-                    </button>
-                </div>
-                <span aria-live="polite">{statusLabel}</span>
-            </div>
-            <div className={styles.fourierLegend}>
-                {plotSeries.map((series) => (
-                    <div key={series.label}>
-                        <span
-                            style={
-                                {
-                                    "--series-color": series.color,
-                                } as CSSProperties
-                            }
-                            aria-hidden="true"
-                        />
-                        <p>
-                            <strong>{series.label}</strong>
-                            <span>{series.detail}</span>
-                        </p>
-                    </div>
-                ))}
-            </div>
-            <FrequencyPlot
-                analysis={analysis}
-                statusLabel={statusLabel}
-            />
-            <div className={styles.previewNotice}>
-                <span>Periodic boundary</span>
-                <p>
-                    {mode === "global"
-                        ? "The complete working image uses the same circular domain as convolution."
-                        : `A ${FOURIER_LOCAL_SIZE} × ${FOURIER_LOCAL_SIZE} Hann window follows the microscope center.`}
-                </p>
-            </div>
-        </section>
-    );
-}
-
 function MobileInspector({
     activePanel,
     selectedPreset,
@@ -2015,14 +1500,12 @@ function MobileInspector({
     sourceBuffer,
     resultBuffer,
     selectedCoordinate,
-    fourierMode,
     fourierAnalysis,
     fourierStatus,
     fourierError,
     onSelectPreset,
     blurRadius,
     onBlurRadiusChange,
-    onFourierModeChange,
     onExpandPanel,
 }: {
     activePanel: MobilePanel;
@@ -2031,14 +1514,12 @@ function MobileInspector({
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
     selectedCoordinate: PixelCoordinate | null;
-    fourierMode: FourierScopeMode;
     fourierAnalysis: SpectrumAnalysisResult | null;
     fourierStatus: FourierAnalysisStatus;
     fourierError: string | null;
     onSelectPreset: (preset: BlurPreset) => void;
     blurRadius: number;
     onBlurRadiusChange: (radius: number) => void;
-    onFourierModeChange: (mode: FourierScopeMode) => void;
     onExpandPanel: (panel: ExpandedPanel) => void;
 }) {
     return (
@@ -2073,8 +1554,6 @@ function MobileInspector({
             {activePanel === "fourier" && (
                 <section className={`${styles.panel} ${styles.fourierPanel}`}>
                     <FourierPanel
-                        mode={fourierMode}
-                        onModeChange={onFourierModeChange}
                         analysis={fourierAnalysis}
                         status={fourierStatus}
                         error={fourierError}
@@ -2151,8 +1630,6 @@ function App() {
     const [selectedPresetId, setSelectedPresetId] =
         useState<BlurPresetId>("neighbour");
     const [blurRadius, setBlurRadius] = useState<number>(1);
-    const [fourierMode, setFourierMode] =
-        useState<FourierScopeMode>("global");
     const selectedPreset = getPreset(selectedPresetId);
     const selectedKernel = useMemo(
         () => selectedPreset.createKernel(blurRadius),
@@ -2164,10 +1641,7 @@ function App() {
         error: fourierError,
     } = useFourierAnalysis({
         sourceBuffer,
-        resultBuffer,
         kernel: selectedKernel,
-        mode: fourierMode,
-        selectedCoordinate,
     });
 
     const activateSource = useCallback((
@@ -2413,8 +1887,6 @@ function App() {
         ) : expandedPanel === "fourier" ? (
             <section className={`${styles.panel} ${styles.fourierPanel}`}>
                 <FourierPanel
-                    mode={fourierMode}
-                    onModeChange={setFourierMode}
                     analysis={fourierAnalysis}
                     status={fourierStatus}
                     error={fourierError}
@@ -2479,8 +1951,6 @@ function App() {
                 <div className={styles.desktopFourier}>
                     <section className={`${styles.panel} ${styles.fourierPanel}`}>
                         <FourierPanel
-                            mode={fourierMode}
-                            onModeChange={setFourierMode}
                             analysis={fourierAnalysis}
                             status={fourierStatus}
                             error={fourierError}
@@ -2495,14 +1965,12 @@ function App() {
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
                     selectedCoordinate={selectedCoordinate}
-                    fourierMode={fourierMode}
                     fourierAnalysis={fourierAnalysis}
                     fourierStatus={fourierStatus}
                     fourierError={fourierError}
                     onSelectPreset={selectPreset}
                     blurRadius={blurRadius}
                     onBlurRadiusChange={changeBlurRadius}
-                    onFourierModeChange={setFourierMode}
                     onExpandPanel={setExpandedPanel}
                 />
             </main>

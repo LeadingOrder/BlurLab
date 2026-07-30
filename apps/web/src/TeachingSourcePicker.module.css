@@ -7,15 +7,19 @@
     min-height: 44px;
     align-items: center;
     padding: 0 15px;
-    border: 1px solid rgba(183, 255, 60, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--blurlab-radius-control);
-    color: var(--blurlab-color-pixel);
-    background: rgba(183, 255, 60, 0.055);
-    box-shadow: 0 0 18px rgba(183, 255, 60, 0.07);
+    color: var(--blurlab-color-ink-muted);
+    background: rgba(255, 255, 255, 0.035);
     cursor: pointer;
     font-size: 12px;
     font-weight: 600;
     list-style: none;
+    transition:
+        border-color 140ms ease,
+        color 140ms ease,
+        background 140ms ease,
+        box-shadow 140ms ease;
     user-select: none;
 }
 
@@ -28,9 +32,28 @@
     height: 6px;
     margin-right: 8px;
     border-radius: 50%;
+    background: var(--blurlab-color-ink-disabled);
+    content: "";
+    transition:
+        background 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.picker summary:hover {
+    border-color: rgba(183, 255, 60, 0.2);
+    color: var(--blurlab-color-ink);
+}
+
+.picker[data-has-active-example="true"] summary {
+    border-color: rgba(183, 255, 60, 0.2);
+    color: var(--blurlab-color-pixel);
+    background: rgba(183, 255, 60, 0.055);
+    box-shadow: 0 0 18px rgba(183, 255, 60, 0.07);
+}
+
+.picker[data-has-active-example="true"] summary::before {
     background: var(--blurlab-color-pixel);
     box-shadow: var(--blurlab-shadow-pixel-glow);
-    content: "";
 }
 
 .picker summary:focus-visible,

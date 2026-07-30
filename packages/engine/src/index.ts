@@ -31,9 +31,9 @@ export {
 export { applyKernel } from "./transforms/applyKernel";
 export {
     analyzeSpectrum,
-    SPECTRUM_IMPLEMENTATION_READY,
-    type FourierScopeMode,
+    analyzePreparedSpectrum,
+    prepareSpectrumSource,
+    type PreparedSpectrumSource,
     type SpectrumAnalysisRequest,
     type SpectrumAnalysisResult,
-    type SpectrumWindow,
 } from "./spectrum";

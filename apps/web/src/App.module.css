@@ -159,7 +159,6 @@
 .expandButton:focus-visible,
 .preset:focus-visible,
 .segmentedControl button:focus-visible,
-.scopeModeControl button:focus-visible,
 .viewSwitch button:focus-visible,
 .comparisonSlider:focus-visible,
 .mobileNavigation button:focus-visible {
@@ -232,6 +231,7 @@
 }
 
 .desktopControls {
+    min-height: 0;
     grid-column: 10 / 13;
 }
 
@@ -916,7 +916,6 @@
 }
 
 .stepBadge,
-.equationBadge,
 .valuePill,
 .dimension {
     padding: 5px 8px;
@@ -933,6 +932,36 @@
 
 .desktopControls > .panel {
     height: 100%;
+}
+
+.desktopControls > .blurPanel {
+    min-height: 0;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+    scrollbar-color:
+        rgba(124, 92, 255, 0.58)
+        rgba(255, 255, 255, 0.035);
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+}
+
+.desktopControls > .blurPanel::-webkit-scrollbar {
+    width: 7px;
+}
+
+.desktopControls > .blurPanel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.desktopControls > .blurPanel::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background:
+        linear-gradient(
+            rgba(124, 92, 255, 0.78),
+            rgba(46, 235, 255, 0.62)
+        )
+        padding-box;
 }
 
 .blurPanel {
@@ -1591,13 +1620,11 @@
     margin: 0;
 }
 
-.kernelPanelContent,
-.fourierPanelContent {
+.kernelPanelContent {
     min-width: 0;
 }
 
-.kernelPanelContent[data-presentation="true"],
-.fourierPanelContent[data-presentation="true"] {
+.kernelPanelContent[data-presentation="true"] {
     min-height: 100%;
 }
 
@@ -1616,17 +1643,6 @@
     gap: clamp(24px, 5vw, 80px);
 }
 
-.fourierPanelContent[data-presentation="true"] {
-    display: grid;
-    padding: clamp(12px, 2vw, 30px);
-    grid-template-rows: auto auto auto minmax(280px, 1fr) auto;
-}
-
-.fourierPanelContent[data-presentation="true"] .frequencyPlot {
-    height: auto;
-    min-height: 280px;
-}
-
 .kernelPanel {
     border-color: rgba(255, 59, 212, 0.25);
     box-shadow:
@@ -1640,190 +1656,6 @@
         var(--blurlab-shadow-panel),
         inset 0 1px 0 rgba(46, 235, 255, 0.08),
         0 0 34px rgba(46, 235, 255, 0.11);
-}
-
-.equationBadge {
-    border-color: rgba(46, 235, 255, 0.42);
-    color: var(--blurlab-color-frequency);
-    font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
-    background: var(--blurlab-color-frequency-background);
-    box-shadow:
-        inset 0 0 12px rgba(46, 235, 255, 0.08),
-        0 0 16px rgba(46, 235, 255, 0.16);
-    text-shadow: 0 0 10px rgba(46, 235, 255, 0.66);
-}
-
-.fourierControls {
-    display: flex;
-    min-height: 34px;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 12px;
-    gap: 12px;
-}
-
-.fourierControls > span {
-    overflow: hidden;
-    color: var(--blurlab-color-ink-disabled);
-    font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.scopeModeControl {
-    display: inline-grid;
-    flex: 0 0 auto;
-    padding: 3px;
-    border: 1px solid rgba(46, 235, 255, 0.18);
-    border-radius: 8px;
-    background: rgba(3, 3, 5, 0.45);
-    grid-template-columns: repeat(2, 1fr);
-}
-
-.scopeModeControl button {
-    min-width: 64px;
-    padding: 6px 9px;
-    border: 0;
-    border-radius: 5px;
-    color: var(--blurlab-color-ink-muted);
-    background: transparent;
-    font-size: 9px;
-    font-weight: 600;
-}
-
-.scopeModeControl button[data-active="true"] {
-    color: var(--blurlab-color-frequency);
-    background: var(--blurlab-color-frequency-background-strong);
-    box-shadow:
-        inset 0 0 0 1px rgba(46, 235, 255, 0.25),
-        0 0 13px rgba(46, 235, 255, 0.16);
-    text-shadow: 0 0 8px rgba(46, 235, 255, 0.65);
-}
-
-.fourierLegend {
-    display: grid;
-    margin: 13px 0 10px;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-}
-
-.fourierLegend > div {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 8px;
-}
-
-.fourierLegend > div > span {
-    width: 20px;
-    height: 2px;
-    flex: 0 0 auto;
-    border-radius: 2px;
-    background: var(--series-color);
-    box-shadow:
-        0 0 7px var(--series-color),
-        0 0 14px var(--series-color);
-}
-
-.fourierLegend p {
-    display: flex;
-    min-width: 0;
-    margin: 0;
-    align-items: flex-start;
-    flex-direction: column;
-}
-
-.fourierLegend strong {
-    font-size: 9px;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.fourierLegend p span {
-    overflow: hidden;
-    max-width: 100%;
-    color: var(--blurlab-color-ink-disabled);
-    font-size: 8px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.frequencyPlot {
-    position: relative;
-    height: 164px;
-    overflow: hidden;
-    border: 1px solid rgba(46, 235, 255, 0.18);
-    border-radius: 10px;
-    background:
-        radial-gradient(circle at 50% 62%, rgba(46, 235, 255, 0.07), transparent 45%),
-        var(--blurlab-color-stage);
-    box-shadow:
-        inset 0 0 35px rgba(46, 235, 255, 0.035),
-        0 0 22px rgba(46, 235, 255, 0.07);
-}
-
-.frequencyPlot canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.frequencyPlotStatus {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    max-width: calc(100% - 70px);
-    padding: 6px 9px;
-    border: 1px solid rgba(46, 235, 255, 0.16);
-    border-radius: 6px;
-    color: var(--blurlab-color-frequency);
-    background: rgba(3, 3, 5, 0.72);
-    font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
-    text-align: center;
-    text-shadow: 0 0 9px rgba(46, 235, 255, 0.55);
-    transform: translate(-50%, -50%);
-}
-
-.frequencyAxisLabel {
-    position: absolute;
-    right: 13px;
-    bottom: 8px;
-    color: var(--blurlab-color-ink-disabled);
-    font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
-    letter-spacing: 0.05em;
-}
-
-.previewNotice {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 10px;
-    gap: 12px;
-}
-
-.previewNotice > span {
-    flex: 0 0 auto;
-    padding: 4px 7px;
-    border: 1px solid rgba(46, 235, 255, 0.18);
-    border-radius: 6px;
-    color: var(--blurlab-color-frequency);
-    background: var(--blurlab-color-frequency-background);
-    font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-
-.previewNotice p {
-    margin: 0;
-    color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
-    line-height: 1.4;
 }
 
 .mobileInspector,
@@ -1984,10 +1816,6 @@
         flex-direction: column;
     }
 
-    .mobileInspector .frequencyPlot {
-        height: 210px;
-    }
-
     .mobileNavigation {
         position: fixed;
         z-index: 30;
@@ -2079,13 +1907,6 @@
         flex-direction: column;
     }
 
-    .fourierLegend p span {
-        display: none;
-    }
-
-    .frequencyPlot {
-        height: 190px !important;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -22,6 +22,7 @@ import {
 } from "@blurlab/engine";
 
 import styles from "./App.module.css";
+import { BlurLabLogo } from "./BlurLabLogo";
 import {
     FullscreenPanel,
     type ExpandedPanel,
@@ -175,11 +176,10 @@ function TopBar({
     return (
         <header className={styles.topBar}>
             <div className={styles.brand}>
-                <span className={styles.brandMark} aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                </span>
+                <BlurLabLogo
+                    className={styles.brandMark}
+                    decorative
+                />
                 <div>
                     <strong>Blur Lab</strong>
                     <span>by Leading Order</span>

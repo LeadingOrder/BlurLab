@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 512 512"
+    role="img"
+    aria-labelledby="logo-title logo-description"
+>
+    <title id="logo-title">Blur Lab convolution-kernel logo</title>
+    <desc id="logo-description">
+        A three-by-three blur kernel whose weights glow outward from a bright centre sample.
+    </desc>
+
+    <defs>
+        <linearGradient id="tile-fill" x1="76" y1="58" x2="436" y2="466" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#10121B" />
+            <stop offset="1" stop-color="#06070B" />
+        </linearGradient>
+        <linearGradient id="violet-magenta" x1="130" y1="130" x2="382" y2="382" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#7C5CFF" />
+            <stop offset="1" stop-color="#FF3BD4" />
+        </linearGradient>
+        <linearGradient id="cyan-violet" x1="166" y1="130" x2="346" y2="382" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#2EEBFF" />
+            <stop offset="1" stop-color="#7C5CFF" />
+        </linearGradient>
+        <radialGradient id="centre-fill" cx="0" cy="0" r="1" gradientTransform="translate(244 238) rotate(48.2) scale(88.3)" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#F7FFE9" />
+            <stop offset="0.22" stop-color="#DCFF9E" />
+            <stop offset="1" stop-color="#B7FF3C" />
+        </radialGradient>
+        <linearGradient id="centre-highlight" x1="236" y1="228" x2="272" y2="274" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFFFF" stop-opacity="0.72" />
+            <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+        </linearGradient>
+        <filter id="cell-glow" x="-90%" y="-90%" width="280%" height="280%" color-interpolation-filters="sRGB">
+            <feGaussianBlur stdDeviation="15" />
+        </filter>
+        <filter id="centre-glow" x="-110%" y="-110%" width="320%" height="320%" color-interpolation-filters="sRGB">
+            <feGaussianBlur stdDeviation="22" />
+        </filter>
+    </defs>
+
+    <!-- Each top-level group is an animation-ready layer. -->
+    <g id="layer-background" data-layer="background">
+        <rect x="40" y="40" width="432" height="432" rx="120" fill="#030305" />
+        <rect x="40.5" y="40.5" width="431" height="431" rx="119.5" fill="url(#tile-fill)" stroke="#7C5CFF" stroke-opacity="0.28" />
+    </g>
+
+    <g id="layer-glow" data-layer="glow" filter="url(#cell-glow)" opacity="0.68">
+        <rect id="glow-north-west" data-cell="north-west" x="130" y="130" width="72" height="72" rx="22" fill="#FF3BD4" />
+        <rect id="glow-north" data-cell="north" x="220" y="130" width="72" height="72" rx="22" fill="#7C5CFF" />
+        <rect id="glow-north-east" data-cell="north-east" x="310" y="130" width="72" height="72" rx="22" fill="#FF3BD4" />
+        <rect id="glow-west" data-cell="west" x="130" y="220" width="72" height="72" rx="22" fill="#2EEBFF" />
+        <rect id="glow-east" data-cell="east" x="310" y="220" width="72" height="72" rx="22" fill="#2EEBFF" />
+        <rect id="glow-south-west" data-cell="south-west" x="130" y="310" width="72" height="72" rx="22" fill="#FF3BD4" />
+        <rect id="glow-south" data-cell="south" x="220" y="310" width="72" height="72" rx="22" fill="#7C5CFF" />
+        <rect id="glow-south-east" data-cell="south-east" x="310" y="310" width="72" height="72" rx="22" fill="#FF3BD4" />
+    </g>
+
+    <g id="layer-centre-glow" data-layer="centre-glow" filter="url(#centre-glow)" opacity="0.66">
+        <rect x="220" y="220" width="72" height="72" rx="22" fill="#B7FF3C" />
+    </g>
+
+    <g id="layer-corner-cells" data-layer="corner-cells">
+        <rect id="cell-north-west" data-cell="north-west" x="130" y="130" width="72" height="72" rx="22" fill="url(#violet-magenta)" />
+        <rect id="cell-north-east" data-cell="north-east" x="310" y="130" width="72" height="72" rx="22" fill="url(#violet-magenta)" />
+        <rect id="cell-south-west" data-cell="south-west" x="130" y="310" width="72" height="72" rx="22" fill="url(#violet-magenta)" />
+        <rect id="cell-south-east" data-cell="south-east" x="310" y="310" width="72" height="72" rx="22" fill="url(#violet-magenta)" />
+    </g>
+
+    <g id="layer-edge-cells" data-layer="edge-cells">
+        <rect id="cell-north" data-cell="north" x="220" y="130" width="72" height="72" rx="22" fill="url(#cyan-violet)" />
+        <rect id="cell-west" data-cell="west" x="130" y="220" width="72" height="72" rx="22" fill="url(#cyan-violet)" />
+        <rect id="cell-east" data-cell="east" x="310" y="220" width="72" height="72" rx="22" fill="url(#cyan-violet)" />
+        <rect id="cell-south" data-cell="south" x="220" y="310" width="72" height="72" rx="22" fill="url(#cyan-violet)" />
+    </g>
+
+    <g id="layer-centre-cell" data-layer="centre-cell">
+        <rect id="cell-centre" data-cell="centre" x="220" y="220" width="72" height="72" rx="22" fill="url(#centre-fill)" />
+    </g>
+
+    <g id="layer-centre-highlight" data-layer="centre-highlight" opacity="0.75">
+        <path d="M236 231C246 223 265 222 277 230C265 228 250 231 241 241C235 248 232 258 233 270C226 255 227 239 236 231Z" fill="url(#centre-highlight)" />
+    </g>
+</svg>

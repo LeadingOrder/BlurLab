@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+    <title id="title">Blur Lab maskable application icon</title>
+    <desc id="description">A safely inset three-by-three convolution kernel on the Blur Lab dark background.</desc>
+    <defs>
+        <radialGradient id="backdrop" cx="0" cy="0" r="1" gradientTransform="translate(256 256) rotate(90) scale(330)" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#151824" />
+            <stop offset="1" stop-color="#030305" />
+        </radialGradient>
+        <linearGradient id="corner" x1="155" y1="155" x2="357" y2="357" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#7C5CFF" />
+            <stop offset="1" stop-color="#FF3BD4" />
+        </linearGradient>
+        <linearGradient id="edge" x1="184" y1="155" x2="328" y2="357" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#2EEBFF" />
+            <stop offset="1" stop-color="#7C5CFF" />
+        </linearGradient>
+        <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="13" />
+        </filter>
+    </defs>
+    <g id="layer-background" data-layer="background">
+        <rect width="512" height="512" fill="url(#backdrop)" />
+    </g>
+    <g id="layer-glow" data-layer="glow" filter="url(#glow)" opacity="0.6">
+        <rect x="155" y="155" width="58" height="58" rx="18" fill="#FF3BD4" />
+        <rect x="227" y="155" width="58" height="58" rx="18" fill="#7C5CFF" />
+        <rect x="299" y="155" width="58" height="58" rx="18" fill="#FF3BD4" />
+        <rect x="155" y="227" width="58" height="58" rx="18" fill="#2EEBFF" />
+        <rect x="227" y="227" width="58" height="58" rx="18" fill="#B7FF3C" />
+        <rect x="299" y="227" width="58" height="58" rx="18" fill="#2EEBFF" />
+        <rect x="155" y="299" width="58" height="58" rx="18" fill="#FF3BD4" />
+        <rect x="227" y="299" width="58" height="58" rx="18" fill="#7C5CFF" />
+        <rect x="299" y="299" width="58" height="58" rx="18" fill="#FF3BD4" />
+    </g>
+    <g id="layer-corner-cells" data-layer="corner-cells">
+        <rect data-cell="north-west" x="155" y="155" width="58" height="58" rx="18" fill="url(#corner)" />
+        <rect data-cell="north-east" x="299" y="155" width="58" height="58" rx="18" fill="url(#corner)" />
+        <rect data-cell="south-west" x="155" y="299" width="58" height="58" rx="18" fill="url(#corner)" />
+        <rect data-cell="south-east" x="299" y="299" width="58" height="58" rx="18" fill="url(#corner)" />
+    </g>
+    <g id="layer-edge-cells" data-layer="edge-cells">
+        <rect data-cell="north" x="227" y="155" width="58" height="58" rx="18" fill="url(#edge)" />
+        <rect data-cell="west" x="155" y="227" width="58" height="58" rx="18" fill="url(#edge)" />
+        <rect data-cell="east" x="299" y="227" width="58" height="58" rx="18" fill="url(#edge)" />
+        <rect data-cell="south" x="227" y="299" width="58" height="58" rx="18" fill="url(#edge)" />
+    </g>
+    <g id="layer-centre-cell" data-layer="centre-cell">
+        <rect data-cell="centre" x="227" y="227" width="58" height="58" rx="18" fill="#B7FF3C" />
+    </g>
+</svg>

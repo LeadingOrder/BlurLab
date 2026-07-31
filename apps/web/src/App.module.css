@@ -50,49 +50,21 @@
 }
 
 .brandMark {
-    position: relative;
-    display: grid;
+    display: block;
+    flex: 0 0 auto;
     width: 40px;
     height: 40px;
-    place-items: center;
-    overflow: hidden;
-    border: 1px solid rgba(124, 92, 255, 0.32);
-    border-radius: 12px;
-    background: rgba(124, 92, 255, 0.1);
-    box-shadow: var(--blurlab-shadow-primary-glow);
 }
 
-.brandMark::before,
-.brandMark span {
-    position: absolute;
-    width: 21px;
-    height: 2px;
-    border-radius: 2px;
-    content: "";
-}
-
-.brandMark::before {
-    transform: rotate(-38deg);
-    background: var(--blurlab-color-primary);
-}
-
-.brandMark span:nth-child(1) {
-    transform: translateY(-6px) rotate(-38deg);
-    background: var(--blurlab-color-frequency);
-}
-
-.brandMark span:nth-child(2) {
-    transform: translateY(6px) rotate(-38deg);
-    background: var(--blurlab-color-spatial);
-}
-
-.brandMark span:nth-child(3) {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    transform: translate(10px, -9px);
-    background: var(--blurlab-color-pixel);
-    box-shadow: var(--blurlab-shadow-pixel-glow);
+/*
+ * Stable hooks for future kernel animations. For example:
+ * .brandMark [data-layer="centre-cell"] { animation: pulse 1.8s infinite; }
+ * .brandMark [data-cell="north"] { animation-delay: 120ms; }
+ */
+.brandMark [data-layer],
+.brandMark [data-cell] {
+    transform-box: fill-box;
+    transform-origin: center;
 }
 
 .brand > div {
@@ -1723,10 +1695,14 @@
     .imageStage {
         min-height: min(55dvh, 530px);
         height: min(55dvh, 530px);
+        grid-template-rows: 64px minmax(0, 1fr);
     }
 
     .stageToolbar {
-        grid-template-columns: 1fr auto;
+        align-content: center;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: 32px 24px;
+        row-gap: 2px;
     }
 
     .stageToolbarEnd {
@@ -1735,7 +1711,9 @@
     }
 
     .comparisonMode {
-        display: none;
+        align-self: center;
+        grid-column: 1 / -1;
+        grid-row: 2;
     }
 
     .stageToolbar .viewSwitch {

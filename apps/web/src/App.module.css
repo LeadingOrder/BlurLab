@@ -731,6 +731,10 @@
     text-transform: uppercase;
 }
 
+.eyebrow {
+    font-size: 11px;
+}
+
 .emptyKicker {
     color: var(--blurlab-color-primary);
 }
@@ -899,7 +903,7 @@
 .stepBadge {
     color: var(--blurlab-color-ink-muted);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .desktopControls > .panel {
@@ -1020,7 +1024,7 @@
 .preset > span:first-child {
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .preset strong {
@@ -1064,7 +1068,7 @@
 
 .parameterLabel span {
     color: var(--blurlab-color-ink-muted);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .parameterLabel strong {
@@ -1110,7 +1114,7 @@
 .radiusReadout span,
 .radiusScale {
     color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .radiusReadout strong {
@@ -1162,7 +1166,7 @@
 .pendingParameter {
     margin: 10px 0 0;
     color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1.45;
 }
 
@@ -1177,7 +1181,7 @@
 .customKernelControl p {
     margin: 0;
     color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1.45;
 }
 
@@ -1208,7 +1212,7 @@
 .formulaHeader {
     justify-content: space-between;
     color: var(--blurlab-color-spatial);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1232,7 +1236,7 @@
 
 .formula sub {
     margin-left: 1px;
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .gaussianExponent {
@@ -1290,7 +1294,7 @@
 
 .summationUpper {
     color: var(--blurlab-color-ink-muted);
-    font-size: 10px;
+    font-size: 11px;
     grid-area: upper;
 }
 
@@ -1302,7 +1306,7 @@
 
 .summationLower {
     color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
+    font-size: 10px;
     font-style: italic;
     grid-area: lower;
 }
@@ -1310,7 +1314,7 @@
 .formulaCard > p {
     margin: 0;
     color: var(--blurlab-color-ink-muted);
-    font-size: 10px;
+    font-size: 11px;
     line-height: 1.5;
 }
 
@@ -1335,7 +1339,7 @@
 
 .kernelSummary > div:first-child span {
     color: var(--blurlab-color-spatial);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1345,7 +1349,7 @@
 .kernelSummary > div:first-child strong {
     color: var(--blurlab-color-ink-muted);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .kernelSummary > .expandButton {
@@ -1369,7 +1373,7 @@
     color: var(--blurlab-color-spatial-strong);
     background: var(--blurlab-color-spatial-background);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .compactKernelWeight {
@@ -1386,7 +1390,7 @@
 .compactKernelWeight > span {
     color: var(--blurlab-color-ink-muted);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
 }
@@ -1403,7 +1407,7 @@
 
 .compactFraction {
     min-width: 24px;
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .pixelPanel,
@@ -1474,7 +1478,7 @@
 .pixelGridGroup > div:first-child span {
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
 }
 
 .pixelGrid {
@@ -1544,7 +1548,7 @@
 
 .sampleData > span {
     color: var(--blurlab-color-pixel);
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1573,14 +1577,14 @@
 .sampleData dt,
 .kernelProperties dt {
     color: var(--blurlab-color-ink-muted);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .sampleData dd,
 .kernelProperties dd {
     margin: 0;
     font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .sampleData dd {

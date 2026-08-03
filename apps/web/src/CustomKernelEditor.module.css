@@ -19,7 +19,7 @@
 .commitNote {
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
@@ -40,7 +40,7 @@
     color: var(--blurlab-color-ink-muted);
     background: transparent;
     cursor: pointer;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 600;
 }
 
@@ -77,7 +77,7 @@
     background: var(--blurlab-color-spatial-background);
     box-shadow: inset 0 0 15px rgba(255, 59, 212, 0.06);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .matrix input[data-anchor="true"] {
@@ -98,7 +98,7 @@
     justify-content: space-between;
     color: var(--blurlab-color-spatial);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 9px;
+    font-size: 10px;
     gap: 12px;
 }
 

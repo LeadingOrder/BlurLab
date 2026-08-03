@@ -32,7 +32,7 @@
     gap: 12px;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
     grid-template-columns:
         minmax(0, 1fr)
         auto
@@ -57,7 +57,7 @@
 .zoomControls > span {
     padding: 0 5px;
     color: var(--blurlab-color-ink-disabled);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
 }
@@ -72,7 +72,7 @@
     background: transparent;
     cursor: pointer;
     font-family: inherit;
-    font-size: 8px;
+    font-size: 10px;
     transition:
         color var(--blurlab-duration-control)
             var(--blurlab-easing-standard),
@@ -137,7 +137,7 @@
 
 .spectrumFigure figcaption span {
     color: var(--blurlab-color-ink);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
 }
 
@@ -153,7 +153,7 @@
 .spectrumFigure figcaption small {
     overflow: hidden;
     color: var(--blurlab-color-ink-disabled);
-    font-size: 9px;
+    font-size: 10px;
     text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -280,7 +280,7 @@
     margin-top: 6px;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .verticalAxis {
@@ -293,7 +293,7 @@
     justify-content: space-between;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 10px;
+    font-size: 11px;
     writing-mode: vertical-rl;
 }
 
@@ -348,7 +348,7 @@
 
 .profileLabel {
     color: var(--series-color);
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-shadow: 0 0 8px var(--series-color);
@@ -358,14 +358,14 @@
 .profileHeading small {
     overflow: hidden;
     color: var(--blurlab-color-ink-disabled);
-    font-size: 7px;
+    font-size: 9px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .profileValue {
     color: var(--blurlab-color-ink-muted);
-    font-size: 7px;
+    font-size: 9px;
 }
 
 .profileChart {
@@ -397,7 +397,7 @@
     justify-content: space-between;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 6px;
+    font-size: 9px;
     flex-direction: column;
     text-align: right;
 }
@@ -408,7 +408,7 @@
     margin: 3px 1px 0 24px;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 7px;
+    font-size: 9px;
 }
 
 .profileFrequencyAxis span:nth-child(2) {
@@ -434,7 +434,7 @@
         ),
         var(--blurlab-color-stage);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 9px;
+    font-size: 10px;
     grid-column: 1 / -1;
 }
 
@@ -450,7 +450,7 @@
     color: var(--blurlab-color-ink-muted);
     background: rgba(3, 3, 5, 0.4);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
     gap: 10px;
     white-space: nowrap;
 }
@@ -473,7 +473,7 @@
     margin-top: 8px;
     color: var(--blurlab-color-ink-disabled);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 7px;
+    font-size: 9px;
     grid-template-columns: auto minmax(40px, 1fr) auto;
     gap: 7px;
 }
@@ -506,7 +506,7 @@
     color: var(--blurlab-color-frequency);
     background: var(--blurlab-color-frequency-background);
     font-family: var(--blurlab-font-family-mono);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
@@ -514,7 +514,7 @@
 .boundaryNote p {
     margin: 0;
     color: var(--blurlab-color-ink-muted);
-    font-size: 9px;
+    font-size: 10px;
     line-height: 1.4;
     text-align: right;
 }
@@ -539,12 +539,12 @@
 
 .panelContent[data-presentation="true"] .profileLabel,
 .panelContent[data-presentation="true"] .profileValue {
-    font-size: 9px;
+    font-size: 10px;
 }
 
 .panelContent[data-presentation="true"] .profileHeading small,
 .panelContent[data-presentation="true"] .profileFrequencyAxis {
-    font-size: 8px;
+    font-size: 9px;
 }
 
 @media (max-width: 860px) {

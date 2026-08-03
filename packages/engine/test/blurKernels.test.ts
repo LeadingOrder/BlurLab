@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     boxBlur3x3Kernel,
     createBoxBlurKernel,
+    createGaussianBlurKernel,
     createHorizontalNeighbourBlurKernel,
     horizontalNeighbourBlurKernel,
     identityKernel,
@@ -109,6 +110,80 @@ describe("createHorizontalNeighbourBlurKernel", () => {
     it("returns independent weight storage", () => {
         const first = createHorizontalNeighbourBlurKernel(2);
         const second = createHorizontalNeighbourBlurKernel(2);
+
+        expect(first.weights).not.toBe(second.weights);
+    });
+});
+
+describe("createGaussianBlurKernel", () => {
+    it("creates a centered, normalized kernel covering three sigma", () => {
+        const kernel = createGaussianBlurKernel(1);
+        const sum = kernel.weights.reduce(
+            (total, weight) => total + weight,
+            0,
+        );
+
+        expect(kernel.width).toBe(7);
+        expect(kernel.height).toBe(7);
+        expect(kernel.anchorX).toBe(3);
+        expect(kernel.anchorY).toBe(3);
+        expect(sum).toBeCloseTo(1);
+    });
+
+    it("is symmetric and gives the center the greatest weight", () => {
+        const kernel = createGaussianBlurKernel(1.4);
+        const centerIndex =
+            kernel.anchorY * kernel.width + kernel.anchorX;
+        const centerWeight = kernel.weights[centerIndex]!;
+
+        for (let index = 0; index < kernel.weights.length; index += 1) {
+            expect(kernel.weights[index]).toBeCloseTo(
+                kernel.weights[kernel.weights.length - index - 1]!,
+            );
+            expect(kernel.weights[index]).toBeLessThanOrEqual(
+                centerWeight,
+            );
+        }
+    });
+
+    it("constructs the two-dimensional kernel as a separable outer product", () => {
+        const kernel = createGaussianBlurKernel(0.8);
+        const pivot = kernel.weights[
+            kernel.anchorY * kernel.width + kernel.anchorX
+        ]!;
+
+        for (let y = 0; y < kernel.height; y += 1) {
+            for (let x = 0; x < kernel.width; x += 1) {
+                const weight = kernel.weights[y * kernel.width + x]!;
+                const vertical = kernel.weights[
+                    y * kernel.width + kernel.anchorX
+                ]!;
+                const horizontal = kernel.weights[
+                    kernel.anchorY * kernel.width + x
+                ]!;
+
+                expect(weight * pivot).toBeCloseTo(
+                    vertical * horizontal,
+                );
+            }
+        }
+    });
+
+    it.each([
+        ["zero", 0],
+        ["negative", -1],
+        ["NaN", Number.NaN],
+        ["positive infinity", Number.POSITIVE_INFINITY],
+        ["negative infinity", Number.NEGATIVE_INFINITY],
+    ])("rejects a %s sigma", (_case, sigma) => {
+        expect(() => createGaussianBlurKernel(sigma)).toThrow(
+            RangeError,
+        );
+    });
+
+    it("returns independent weight storage", () => {
+        const first = createGaussianBlurKernel(1);
+        const second = createGaussianBlurKernel(1);
 
         expect(first.weights).not.toBe(second.weights);
     });

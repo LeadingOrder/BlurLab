@@ -1,0 +1,161 @@
+.editor {
+    min-width: 0;
+}
+
+.toolbar,
+.actions,
+.status {
+    display: flex;
+    align-items: center;
+}
+
+.toolbar {
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+
+.toolbar > span,
+.commitNote {
+    color: var(--blurlab-color-ink-disabled);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sizeControl {
+    display: flex;
+    padding: 3px;
+    border: 1px solid var(--blurlab-color-line);
+    border-radius: 8px;
+    background: rgba(3, 3, 5, 0.55);
+}
+
+.sizeControl button,
+.actions button {
+    min-height: 32px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--blurlab-color-ink-muted);
+    background: transparent;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 600;
+}
+
+.sizeControl button {
+    min-width: 46px;
+    padding: 0 8px;
+}
+
+.sizeControl button[data-active="true"] {
+    color: var(--blurlab-color-spatial-strong);
+    background: var(--blurlab-color-spatial-background);
+    box-shadow: inset 0 0 0 1px rgba(255, 59, 212, 0.28);
+}
+
+.matrix {
+    display: grid;
+    padding: 9px;
+    overflow-x: auto;
+    border-right: 2px solid var(--blurlab-color-spatial);
+    border-left: 2px solid var(--blurlab-color-spatial);
+    gap: 5px;
+}
+
+.matrix input {
+    width: 100%;
+    min-width: 34px;
+    min-height: 42px;
+    padding: 4px;
+    border: 1px solid rgba(255, 59, 212, 0.24);
+    border-radius: 7px;
+    outline: none;
+    color: var(--blurlab-color-spatial-strong);
+    text-align: center;
+    background: var(--blurlab-color-spatial-background);
+    box-shadow: inset 0 0 15px rgba(255, 59, 212, 0.06);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 10px;
+}
+
+.matrix input[data-anchor="true"] {
+    border-color: var(--blurlab-color-pixel);
+    box-shadow:
+        inset 0 0 14px rgba(183, 255, 60, 0.08),
+        0 0 12px rgba(183, 255, 60, 0.23);
+}
+
+.matrix input:focus-visible,
+.sizeControl button:focus-visible,
+.actions button:focus-visible {
+    box-shadow: var(--blurlab-focus-ring);
+}
+
+.status {
+    min-height: 29px;
+    justify-content: space-between;
+    color: var(--blurlab-color-spatial);
+    font-family: var(--blurlab-font-family-mono);
+    font-size: 9px;
+    gap: 12px;
+}
+
+.status[data-valid="false"] {
+    color: #ff8bba;
+}
+
+.status span {
+    color: var(--blurlab-color-ink-muted);
+}
+
+.actions {
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.actions button {
+    padding: 0 11px;
+    border: 1px solid var(--blurlab-color-line);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.actions button:disabled {
+    color: var(--blurlab-color-ink-disabled);
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.actions .applyButton {
+    border-color: rgba(255, 59, 212, 0.48);
+    color: var(--blurlab-color-spatial-strong);
+    background: var(--blurlab-color-spatial-background);
+    box-shadow: 0 0 15px rgba(255, 59, 212, 0.12);
+}
+
+.commitNote {
+    margin: 8px 0 0;
+    text-align: right;
+}
+
+@media (max-width: 520px) {
+    .toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .sizeControl,
+    .sizeControl button {
+        width: 100%;
+    }
+
+    .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .actions .applyButton {
+        grid-column: 1 / -1;
+    }
+}

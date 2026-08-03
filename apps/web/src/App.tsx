@@ -11,6 +11,7 @@ import {
 
 import {
     createBoxBlurKernel,
+    createGaussianBlurKernel,
     createHorizontalNeighbourBlurKernel,
     createTeachingPattern,
     pixelCoordinateToOffset,
@@ -23,6 +24,12 @@ import {
 
 import styles from "./App.module.css";
 import { BlurLabLogo } from "./BlurLabLogo";
+import { CustomKernelEditor } from "./CustomKernelEditor";
+import {
+    createIdentityCustomKernelDraft,
+    parseCustomKernelDraft,
+    type CustomKernelDraft,
+} from "./customKernel";
 import {
     FullscreenPanel,
     type ExpandedPanel,
@@ -53,7 +60,7 @@ import {
 } from "./imagePipeline";
 
 type MobilePanel = "blur" | "kernel" | "pixels" | "fourier";
-type BlurPresetId = "neighbour" | "box";
+type BlurPresetId = "neighbour" | "box" | "gaussian" | "custom";
 
 type ImageMetadata = {
     name: string;
@@ -76,7 +83,7 @@ type FittedImageRect = {
 type BlurPreset = {
     id: BlurPresetId;
     label: string;
-    createKernel: (radius: number) => Kernel;
+    parameter: "radius" | "sigma" | "custom";
     direction: string;
     description: string;
 };
@@ -91,16 +98,30 @@ const presets: readonly BlurPreset[] = [
     {
         id: "neighbour",
         label: "Neighbour",
-        createKernel: createHorizontalNeighbourBlurKernel,
+        parameter: "radius",
         direction: "Horizontal",
         description: "Each output averages the current pixel with its right-hand neighbours.",
     },
     {
         id: "box",
         label: "Box",
-        createKernel: createBoxBlurKernel,
+        parameter: "radius",
         direction: "Both axes",
         description: "Each output is the equal-weight average of a square neighbourhood.",
+    },
+    {
+        id: "gaussian",
+        label: "Gaussian",
+        parameter: "sigma",
+        direction: "Both axes",
+        description: "Nearby pixels contribute more strongly according to their Gaussian distance from the centre.",
+    },
+    {
+        id: "custom",
+        label: "Custom",
+        parameter: "custom",
+        direction: "User-defined",
+        description: "Each output is the weighted sum defined by the editable custom kernel.",
     },
 ];
 
@@ -892,6 +913,8 @@ function BlurPanel({
     onSelectPreset,
     blurRadius,
     onBlurRadiusChange,
+    gaussianSigma,
+    onGaussianSigmaChange,
     onExpand,
     onExpandKernel,
     presentation = false,
@@ -901,10 +924,17 @@ function BlurPanel({
     onSelectPreset: (preset: BlurPreset) => void;
     blurRadius: number;
     onBlurRadiusChange: (radius: number) => void;
+    gaussianSigma: number;
+    onGaussianSigmaChange: (sigma: number) => void;
     onExpand?: () => void;
     onExpandKernel?: () => void;
     presentation?: boolean;
 }) {
+    const kernelSum = kernel.weights.reduce(
+        (sum, weight) => sum + weight,
+        0,
+    );
+
     return (
         <section
             className={`${styles.panel} ${styles.blurPanel}`}
@@ -949,7 +979,9 @@ function BlurPanel({
                     <span className={styles.valuePill}>
                         {selectedPreset.id === "neighbour"
                             ? "x-axis"
-                            : "x · y"}
+                            : selectedPreset.id === "custom"
+                              ? "free"
+                              : "x · y"}
                     </span>
                 </div>
                 {selectedPreset.id === "neighbour" && (
@@ -962,38 +994,86 @@ function BlurPanel({
                         </button>
                     </div>
                 )}
-                <div className={styles.radiusControl}>
-                    <div className={styles.radiusReadout}>
-                        <span>Target radius</span>
-                        <strong>{blurRadius} px</strong>
+                {selectedPreset.parameter === "radius" && (
+                    <div className={styles.radiusControl}>
+                        <div className={styles.radiusReadout}>
+                            <span>Target radius</span>
+                            <strong>{blurRadius} px</strong>
+                        </div>
+                        <input
+                            type="range"
+                            min="1"
+                            max="12"
+                            step="1"
+                            value={blurRadius}
+                            aria-label={`Target ${selectedPreset.label.toLowerCase()} blur radius in source pixels`}
+                            onChange={(event) => {
+                                onBlurRadiusChange(
+                                    Number(event.currentTarget.value),
+                                );
+                            }}
+                        />
+                        <div className={styles.radiusScale} aria-hidden="true">
+                            <span>1 px</span>
+                            <span>12 px</span>
+                        </div>
                     </div>
-                    <input
-                        type="range"
-                        min="1"
-                        max="12"
-                        step="1"
-                        value={blurRadius}
-                        aria-label={`Target ${selectedPreset.label.toLowerCase()} blur radius in source pixels`}
-                        onChange={(event) => {
-                            onBlurRadiusChange(
-                                Number(event.currentTarget.value),
-                            );
-                        }}
-                    />
-                    <div className={styles.radiusScale} aria-hidden="true">
-                        <span>1 px</span>
-                        <span>12 px</span>
+                )}
+                {selectedPreset.parameter === "sigma" && (
+                    <div className={styles.radiusControl}>
+                        <div className={styles.radiusReadout}>
+                            <span>Gaussian spread</span>
+                            <strong>σ {gaussianSigma.toFixed(1)}</strong>
+                        </div>
+                        <input
+                            type="range"
+                            min="0.5"
+                            max="4"
+                            step="0.1"
+                            value={gaussianSigma}
+                            aria-label="Gaussian blur sigma in source pixels"
+                            onChange={(event) => {
+                                onGaussianSigmaChange(
+                                    Number(event.currentTarget.value),
+                                );
+                            }}
+                        />
+                        <div className={styles.radiusScale} aria-hidden="true">
+                            <span>σ 0.5</span>
+                            <span>σ 4.0</span>
+                        </div>
                     </div>
-                    <p className={styles.pendingParameter}>
-                        Active kernel · {kernel.height} × {kernel.width} ·
-                        {" "}{kernel.weights.length} equal weights · periodic edge
-                    </p>
-                </div>
+                )}
+                {selectedPreset.parameter === "custom" && (
+                    <div className={styles.customKernelControl}>
+                        <p>
+                            Edit finite real weights on a centred odd grid,
+                            then apply them as one kernel.
+                        </p>
+                        {onExpandKernel !== undefined && (
+                            <button
+                                type="button"
+                                onClick={onExpandKernel}
+                            >
+                                Edit custom kernel
+                            </button>
+                        )}
+                    </div>
+                )}
+                <p className={styles.pendingParameter}>
+                    Active kernel · {kernel.height} × {kernel.width} ·
+                    {" "}{kernel.weights.length} weights · sum {formatWeight(kernelSum)} · periodic edge
+                    {selectedPreset.id === "gaussian" && (
+                        <> · radius {kernel.anchorX} px</>
+                    )}
+                </p>
             </div>
 
             <FormulaCard
                 preset={selectedPreset}
                 blurRadius={blurRadius}
+                gaussianSigma={gaussianSigma}
+                kernel={kernel}
             />
             <KernelSummary
                 kernel={kernel}
@@ -1006,15 +1086,23 @@ function BlurPanel({
 function FormulaCard({
     preset,
     blurRadius,
+    gaussianSigma,
+    kernel,
 }: {
     preset: BlurPreset;
     blurRadius: number;
+    gaussianSigma: number;
+    kernel: Kernel;
 }) {
     return (
         <div className={styles.formulaCard}>
             <div className={styles.formulaHeader}>
                 <span>Formula</span>
-                <span>normalized</span>
+                <span>
+                    {preset.id === "custom"
+                        ? "user weights"
+                        : "normalized"}
+                </span>
             </div>
             <div
                 className={styles.formula}
@@ -1065,6 +1153,44 @@ function FormulaCard({
                         </span>
                     </>
                 )}
+                {preset.id === "gaussian" && (
+                    <>
+                        <span className={styles.mathVariable}>
+                            <i>K</i><sub>m,n</sub>
+                        </span>
+                        <span>=</span>
+                        <span className={styles.coefficientFraction}>
+                            <span>1</span>
+                            <span>Z</span>
+                        </span>
+                        <span>exp</span>
+                        <span className={styles.gaussianExponent}>
+                            −(m²+n²) / (2·{gaussianSigma.toFixed(1)}²)
+                        </span>
+                    </>
+                )}
+                {preset.id === "custom" && (
+                    <>
+                        <span className={styles.mathVariable}>
+                            <i>y</i><sub>i,j</sub>
+                        </span>
+                        <span>=</span>
+                        <Summation
+                            index="m"
+                            lowerBound={-kernel.anchorY}
+                            upperBound={kernel.height - kernel.anchorY - 1}
+                        />
+                        <Summation
+                            index="n"
+                            lowerBound={-kernel.anchorX}
+                            upperBound={kernel.width - kernel.anchorX - 1}
+                        />
+                        <span className={styles.mathVariable}>
+                            <i>K</i><sub>m,n</sub>
+                            <i>x</i><sub>i+m,j+n</sub>
+                        </span>
+                    </>
+                )}
             </div>
             <p>{preset.description}</p>
         </div>
@@ -1103,27 +1229,41 @@ function CompactKernelWeight({
     kernel: Kernel;
 }) {
     const weight = kernel.weights[0]!;
+    const isUniform = [...kernel.weights].every(
+        (candidate) => candidate === weight,
+    );
     const isNormalizedUniform =
-        [...kernel.weights].every(
-            (candidate) => candidate === weight,
-        ) &&
+        isUniform &&
         Math.abs(weight * kernel.weights.length - 1) <
         Number.EPSILON * kernel.weights.length;
+    const minimum = Math.min(...kernel.weights);
+    const maximum = Math.max(...kernel.weights);
 
     return (
         <div className={styles.compactKernelWeight}>
-            <span>{kernel.weights.length} equal weights</span>
-            <strong>
-                <i>w</i>
-                <span>=</span>
-                {isNormalizedUniform && (
-                    <span className={styles.compactFraction}>
-                        <span>1</span>
-                        <span>{kernel.weights.length}</span>
-                    </span>
-                )}
-                <span>≈ {formatWeight(weight)}</span>
-            </strong>
+            <span>
+                {kernel.weights.length}{" "}
+                {isUniform ? "equal weights" : "spatial weights"}
+            </span>
+            {isUniform ? (
+                <strong>
+                    <i>w</i>
+                    <span>=</span>
+                    {isNormalizedUniform && (
+                        <span className={styles.compactFraction}>
+                            <span>1</span>
+                            <span>{kernel.weights.length}</span>
+                        </span>
+                    )}
+                    <span>≈ {formatWeight(weight)}</span>
+                </strong>
+            ) : (
+                <strong>
+                    <span>min {formatWeight(minimum)}</span>
+                    <span>·</span>
+                    <span>max {formatWeight(maximum)}</span>
+                </strong>
+            )}
         </div>
     );
 }
@@ -1413,15 +1553,63 @@ function PixelPanel({
     );
 }
 
+function isKernelSeparable(kernel: Kernel): boolean {
+    let pivotIndex = 0;
+    let pivotMagnitude = 0;
+
+    for (let index = 0; index < kernel.weights.length; index += 1) {
+        const magnitude = Math.abs(kernel.weights[index]!);
+
+        if (magnitude > pivotMagnitude) {
+            pivotIndex = index;
+            pivotMagnitude = magnitude;
+        }
+    }
+
+    if (pivotMagnitude === 0) {
+        return true;
+    }
+
+    const pivotY = Math.floor(pivotIndex / kernel.width);
+    const pivotX = pivotIndex % kernel.width;
+    const pivot = kernel.weights[pivotIndex]!;
+
+    for (let y = 0; y < kernel.height; y += 1) {
+        for (let x = 0; x < kernel.width; x += 1) {
+            const left = kernel.weights[y * kernel.width + x]! * pivot;
+            const right =
+                kernel.weights[y * kernel.width + pivotX]! *
+                kernel.weights[pivotY * kernel.width + x]!;
+            const scale = Math.max(1, Math.abs(left), Math.abs(right));
+
+            if (Math.abs(left - right) > 1e-10 * scale) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 function KernelPanel({
     kernel,
+    customDraft,
+    onCustomDraftChange,
+    onApplyCustomKernel,
     onExpand,
     presentation = false,
 }: {
     kernel: Kernel;
+    customDraft?: CustomKernelDraft;
+    onCustomDraftChange?: (draft: CustomKernelDraft) => void;
+    onApplyCustomKernel?: (kernel: Kernel) => void;
     onExpand?: () => void;
     presentation?: boolean;
 }) {
+    const isEditingCustom =
+        customDraft !== undefined &&
+        onCustomDraftChange !== undefined &&
+        onApplyCustomKernel !== undefined;
     const showFullMatrix =
         kernel.width <= 5 &&
         kernel.height <= 5;
@@ -1436,6 +1624,13 @@ function KernelPanel({
             (weight, index, weights) =>
                 weight === weights[weights.length - index - 1],
         );
+    const isSeparable = isKernelSeparable(kernel);
+    const displayedWidth = isEditingCustom
+        ? customDraft.size
+        : kernel.width;
+    const displayedHeight = isEditingCustom
+        ? customDraft.size
+        : kernel.height;
 
     return (
         <section
@@ -1448,13 +1643,22 @@ function KernelPanel({
                 accent="spatial"
                 aside={
                     <span className={styles.dimension}>
-                        {kernel.height} × {kernel.width}
+                        {displayedHeight} × {displayedWidth}
                     </span>
                 }
                 onExpand={onExpand}
             />
-            <div className={styles.kernelBody}>
-                {showFullMatrix ? (
+            <div
+                className={styles.kernelBody}
+                data-editing-custom={isEditingCustom}
+            >
+                {isEditingCustom ? (
+                    <CustomKernelEditor
+                        draft={customDraft}
+                        onDraftChange={onCustomDraftChange}
+                        onApply={onApplyCustomKernel}
+                    />
+                ) : showFullMatrix ? (
                     <div
                         className={styles.kernelMatrix}
                         aria-label={`${kernel.height} by ${kernel.width} kernel weights`}
@@ -1472,7 +1676,7 @@ function KernelPanel({
                 )}
                 <dl className={styles.kernelProperties}>
                     <div>
-                        <dt>Sum</dt>
+                        <dt>{isEditingCustom ? "Applied sum" : "Sum"}</dt>
                         <dd>{weightSum.toFixed(2)}</dd>
                     </div>
                     <div>
@@ -1481,7 +1685,7 @@ function KernelPanel({
                     </div>
                     <div>
                         <dt>Separable</dt>
-                        <dd>Yes</dd>
+                        <dd>{isSeparable ? "Yes" : "No"}</dd>
                     </div>
                     <div>
                         <dt>Boundary</dt>
@@ -1506,6 +1710,11 @@ function MobileInspector({
     onSelectPreset,
     blurRadius,
     onBlurRadiusChange,
+    gaussianSigma,
+    onGaussianSigmaChange,
+    customKernelDraft,
+    onCustomKernelDraftChange,
+    onApplyCustomKernel,
     onExpandPanel,
 }: {
     activePanel: MobilePanel;
@@ -1520,6 +1729,11 @@ function MobileInspector({
     onSelectPreset: (preset: BlurPreset) => void;
     blurRadius: number;
     onBlurRadiusChange: (radius: number) => void;
+    gaussianSigma: number;
+    onGaussianSigmaChange: (sigma: number) => void;
+    customKernelDraft: CustomKernelDraft;
+    onCustomKernelDraftChange: (draft: CustomKernelDraft) => void;
+    onApplyCustomKernel: (kernel: Kernel) => void;
     onExpandPanel: (panel: ExpandedPanel) => void;
 }) {
     return (
@@ -1531,6 +1745,8 @@ function MobileInspector({
                     onSelectPreset={onSelectPreset}
                     blurRadius={blurRadius}
                     onBlurRadiusChange={onBlurRadiusChange}
+                    gaussianSigma={gaussianSigma}
+                    onGaussianSigmaChange={onGaussianSigmaChange}
                     onExpand={() => onExpandPanel("blur")}
                     onExpandKernel={() => onExpandPanel("kernel")}
                 />
@@ -1539,6 +1755,13 @@ function MobileInspector({
                 <section className={`${styles.panel} ${styles.kernelPanel}`}>
                     <KernelPanel
                         kernel={kernel}
+                        customDraft={
+                            selectedPreset.id === "custom"
+                                ? customKernelDraft
+                                : undefined
+                        }
+                        onCustomDraftChange={onCustomKernelDraftChange}
+                        onApplyCustomKernel={onApplyCustomKernel}
                         onExpand={() => onExpandPanel("kernel")}
                     />
                 </section>
@@ -1630,10 +1853,37 @@ function App() {
     const [selectedPresetId, setSelectedPresetId] =
         useState<BlurPresetId>("neighbour");
     const [blurRadius, setBlurRadius] = useState<number>(1);
+    const [gaussianSigma, setGaussianSigma] = useState<number>(1);
+    const [customKernelDraft, setCustomKernelDraft] =
+        useState<CustomKernelDraft>(() =>
+            createIdentityCustomKernelDraft(3),
+        );
+    const [customKernel, setCustomKernel] = useState<Kernel>(() => {
+        const parsed = parseCustomKernelDraft(
+            createIdentityCustomKernelDraft(3),
+        );
+
+        if (!parsed.ok) {
+            throw new Error("The initial custom kernel is invalid.");
+        }
+
+        return parsed.kernel;
+    });
     const selectedPreset = getPreset(selectedPresetId);
     const selectedKernel = useMemo(
-        () => selectedPreset.createKernel(blurRadius),
-        [blurRadius, selectedPreset],
+        () => {
+            switch (selectedPresetId) {
+                case "neighbour":
+                    return createHorizontalNeighbourBlurKernel(blurRadius);
+                case "box":
+                    return createBoxBlurKernel(blurRadius);
+                case "gaussian":
+                    return createGaussianBlurKernel(gaussianSigma);
+                case "custom":
+                    return customKernel;
+            }
+        },
+        [blurRadius, customKernel, gaussianSigma, selectedPresetId],
     );
     const {
         analysis: fourierAnalysis,
@@ -1676,6 +1926,30 @@ function App() {
         setBlurRadius(radius);
 
         if (sourceBuffer !== null) {
+            setResultBuffer(null);
+            setProcessingError(null);
+            setIsProcessing(true);
+        }
+    };
+
+    const changeGaussianSigma = (sigma: number) => {
+        if (sigma === gaussianSigma) {
+            return;
+        }
+
+        setGaussianSigma(sigma);
+
+        if (sourceBuffer !== null) {
+            setResultBuffer(null);
+            setProcessingError(null);
+            setIsProcessing(true);
+        }
+    };
+
+    const applyCustomKernel = (kernel: Kernel) => {
+        setCustomKernel(kernel);
+
+        if (sourceBuffer !== null && selectedPresetId === "custom") {
             setResultBuffer(null);
             setProcessingError(null);
             setIsProcessing(true);
@@ -1867,6 +2141,8 @@ function App() {
                 onSelectPreset={selectPreset}
                 blurRadius={blurRadius}
                 onBlurRadiusChange={changeBlurRadius}
+                gaussianSigma={gaussianSigma}
+                onGaussianSigmaChange={changeGaussianSigma}
                 onExpandKernel={() => setExpandedPanel("kernel")}
                 presentation
             />
@@ -1874,6 +2150,13 @@ function App() {
             <section className={`${styles.panel} ${styles.kernelPanel}`}>
                 <KernelPanel
                     kernel={selectedKernel}
+                    customDraft={
+                        selectedPresetId === "custom"
+                            ? customKernelDraft
+                            : undefined
+                    }
+                    onCustomDraftChange={setCustomKernelDraft}
+                    onApplyCustomKernel={applyCustomKernel}
                     presentation
                 />
             </section>
@@ -1936,6 +2219,8 @@ function App() {
                         onSelectPreset={selectPreset}
                         blurRadius={blurRadius}
                         onBlurRadiusChange={changeBlurRadius}
+                        gaussianSigma={gaussianSigma}
+                        onGaussianSigmaChange={changeGaussianSigma}
                         onExpand={() => setExpandedPanel("blur")}
                         onExpandKernel={() => setExpandedPanel("kernel")}
                     />
@@ -1971,6 +2256,11 @@ function App() {
                     onSelectPreset={selectPreset}
                     blurRadius={blurRadius}
                     onBlurRadiusChange={changeBlurRadius}
+                    gaussianSigma={gaussianSigma}
+                    onGaussianSigmaChange={changeGaussianSigma}
+                    customKernelDraft={customKernelDraft}
+                    onCustomKernelDraftChange={setCustomKernelDraft}
+                    onApplyCustomKernel={applyCustomKernel}
                     onExpandPanel={setExpandedPanel}
                 />
             </main>

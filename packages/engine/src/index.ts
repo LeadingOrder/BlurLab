@@ -7,6 +7,7 @@
  */
 export {
     boxBlur3x3Kernel,
+    createGaussianBlurKernel,
     createHorizontalNeighbourBlurKernel,
     horizontalNeighbourBlurKernel,
     identityKernel,

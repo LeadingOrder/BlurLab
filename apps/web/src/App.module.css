@@ -1166,6 +1166,33 @@
     line-height: 1.45;
 }
 
+.customKernelControl {
+    display: grid;
+    margin-top: 13px;
+    padding-top: 12px;
+    border-top: 1px solid var(--blurlab-color-line);
+    gap: 9px;
+}
+
+.customKernelControl p {
+    margin: 0;
+    color: var(--blurlab-color-ink-muted);
+    font-size: 9px;
+    line-height: 1.45;
+}
+
+.customKernelControl button {
+    min-height: 36px;
+    border: 1px solid rgba(255, 59, 212, 0.38);
+    border-radius: 8px;
+    color: var(--blurlab-color-spatial-strong);
+    background: var(--blurlab-color-spatial-background);
+    box-shadow: 0 0 14px rgba(255, 59, 212, 0.1);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+}
+
 .formulaCard {
     margin-top: 14px;
     padding: 13px;
@@ -1206,6 +1233,10 @@
 .formula sub {
     margin-left: 1px;
     font-size: 10px;
+}
+
+.gaussianExponent {
+    font-size: 0.78em;
 }
 
 .mathVariable {

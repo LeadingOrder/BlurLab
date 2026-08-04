@@ -17,11 +17,13 @@ export function FullscreenPanel({
     panel,
     title,
     onClose,
+    controls,
     children,
 }: {
     panel: ExpandedPanel;
     title: string;
     onClose: () => void;
+    controls?: ReactNode;
     children: ReactNode;
 }) {
     const dialogRef = useRef<HTMLDialogElement>(null);
@@ -59,7 +61,10 @@ export function FullscreenPanel({
                 onClose();
             }}
         >
-            <div className={styles.shell}>
+            <div
+                className={styles.shell}
+                data-has-controls={controls !== undefined}
+            >
                 <header className={styles.toolbar}>
                     <div>
                         <span>Presentation view</span>
@@ -74,6 +79,11 @@ export function FullscreenPanel({
                         Close
                     </button>
                 </header>
+                {controls !== undefined && (
+                    <div className={styles.controls}>
+                        {controls}
+                    </div>
+                )}
                 <div
                     className={styles.content}
                     data-panel={panel}

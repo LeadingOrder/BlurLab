@@ -14,7 +14,6 @@ import {
     createGaussianBlurKernel,
     createHorizontalNeighbourBlurKernel,
     createTeachingPattern,
-    pixelCoordinateToOffset,
     type Kernel,
     type PixelCoordinate,
     type PixelBuffer,
@@ -23,6 +22,11 @@ import {
 } from "@blurlab/engine";
 
 import styles from "./App.module.css";
+import {
+    BlurParameterControl,
+    BlurPresetSelector,
+    PresentationBlurControls,
+} from "./BlurControls";
 import { BlurLabLogo } from "./BlurLabLogo";
 import { CustomKernelEditor } from "./CustomKernelEditor";
 import {
@@ -58,9 +62,20 @@ import {
     decodeImageFile,
     pixelBufferToCanvas,
 } from "./imagePipeline";
+import {
+    MICROSCOPE_SIDE_LENGTH,
+    clampMicroscopeCenter,
+    createMicroscopeSamples,
+    readPixel,
+    type RgbaSample,
+} from "./microscope";
+import {
+    getBlurPreset,
+    type BlurPreset,
+    type BlurPresetId,
+} from "./blurPresets";
 
 type MobilePanel = "blur" | "kernel" | "pixels" | "fourier";
-type BlurPresetId = "neighbour" | "box" | "gaussian" | "custom";
 
 type ImageMetadata = {
     name: string;
@@ -80,54 +95,8 @@ type FittedImageRect = {
     scale: number;
 };
 
-type BlurPreset = {
-    id: BlurPresetId;
-    label: string;
-    parameter: "radius" | "sigma" | "custom";
-    direction: string;
-    description: string;
-};
-
-const MICROSCOPE_RADIUS = 5;
-const MICROSCOPE_SIDE_LENGTH =
-    2 * MICROSCOPE_RADIUS + 1;
 const INITIAL_TEACHING_PATTERN: TeachingPatternId =
     "composite";
-
-const presets: readonly BlurPreset[] = [
-    {
-        id: "neighbour",
-        label: "Neighbour",
-        parameter: "radius",
-        direction: "Horizontal",
-        description: "Each output averages the current pixel with its right-hand neighbours.",
-    },
-    {
-        id: "box",
-        label: "Box",
-        parameter: "radius",
-        direction: "Both axes",
-        description: "Each output is the equal-weight average of a square neighbourhood.",
-    },
-    {
-        id: "gaussian",
-        label: "Gaussian",
-        parameter: "sigma",
-        direction: "Both axes",
-        description: "Nearby pixels contribute more strongly according to their Gaussian distance from the centre.",
-    },
-    {
-        id: "custom",
-        label: "Custom",
-        parameter: "custom",
-        direction: "User-defined",
-        description: "Each output is the weighted sum defined by the editable custom kernel.",
-    },
-];
-
-function getPreset(id: BlurPresetId): BlurPreset {
-    return presets.find((preset) => preset.id === id)!;
-}
 
 const mobilePanels: {
     id: MobilePanel;
@@ -261,33 +230,6 @@ function calculateFittedImageRect(
         width,
         height,
         scale,
-    };
-}
-
-function clampMicroscopeCenter(
-    coordinate: PixelCoordinate,
-    buffer: PixelBuffer,
-): PixelCoordinate {
-    const minX =
-        buffer.width >= MICROSCOPE_SIDE_LENGTH
-            ? MICROSCOPE_RADIUS
-            : 0;
-    const minY =
-        buffer.height >= MICROSCOPE_SIDE_LENGTH
-            ? MICROSCOPE_RADIUS
-            : 0;
-    const maxX =
-        buffer.width >= MICROSCOPE_SIDE_LENGTH
-            ? buffer.width - MICROSCOPE_RADIUS - 1
-            : buffer.width - 1;
-    const maxY =
-        buffer.height >= MICROSCOPE_SIDE_LENGTH
-            ? buffer.height - MICROSCOPE_RADIUS - 1
-            : buffer.height - 1;
-
-    return {
-        x: Math.min(maxX, Math.max(minX, coordinate.x)),
-        y: Math.min(maxY, Math.max(minY, coordinate.y)),
     };
 }
 
@@ -948,27 +890,10 @@ function BlurPanel({
                 onExpand={onExpand}
             />
 
-            <div className={styles.presetList} aria-label="Blur presets">
-                {presets.map((preset, index) => (
-                    <button
-                        key={preset.id}
-                        className={styles.preset}
-                        type="button"
-                        data-selected={preset.id === selectedPreset.id}
-                        aria-pressed={preset.id === selectedPreset.id}
-                        onClick={() => onSelectPreset(preset)}
-                    >
-                        <span>{String(index).padStart(2, "0")}</span>
-                        <strong>{preset.label}</strong>
-                        {preset.id === selectedPreset.id && (
-                            <span
-                                className={styles.selectedDot}
-                                aria-hidden="true"
-                            />
-                        )}
-                    </button>
-                ))}
-            </div>
+            <BlurPresetSelector
+                selectedPreset={selectedPreset}
+                onSelectPreset={onSelectPreset}
+            />
 
             <div className={styles.parameterBlock}>
                 <div className={styles.parameterLabel}>
@@ -994,72 +919,14 @@ function BlurPanel({
                         </button>
                     </div>
                 )}
-                {selectedPreset.parameter === "radius" && (
-                    <div className={styles.radiusControl}>
-                        <div className={styles.radiusReadout}>
-                            <span>Target radius</span>
-                            <strong>{blurRadius} px</strong>
-                        </div>
-                        <input
-                            type="range"
-                            min="1"
-                            max="12"
-                            step="1"
-                            value={blurRadius}
-                            aria-label={`Target ${selectedPreset.label.toLowerCase()} blur radius in source pixels`}
-                            onChange={(event) => {
-                                onBlurRadiusChange(
-                                    Number(event.currentTarget.value),
-                                );
-                            }}
-                        />
-                        <div className={styles.radiusScale} aria-hidden="true">
-                            <span>1 px</span>
-                            <span>12 px</span>
-                        </div>
-                    </div>
-                )}
-                {selectedPreset.parameter === "sigma" && (
-                    <div className={styles.radiusControl}>
-                        <div className={styles.radiusReadout}>
-                            <span>Gaussian spread</span>
-                            <strong>σ {gaussianSigma.toFixed(1)}</strong>
-                        </div>
-                        <input
-                            type="range"
-                            min="0.5"
-                            max="4"
-                            step="0.1"
-                            value={gaussianSigma}
-                            aria-label="Gaussian blur sigma in source pixels"
-                            onChange={(event) => {
-                                onGaussianSigmaChange(
-                                    Number(event.currentTarget.value),
-                                );
-                            }}
-                        />
-                        <div className={styles.radiusScale} aria-hidden="true">
-                            <span>σ 0.5</span>
-                            <span>σ 4.0</span>
-                        </div>
-                    </div>
-                )}
-                {selectedPreset.parameter === "custom" && (
-                    <div className={styles.customKernelControl}>
-                        <p>
-                            Edit finite real weights on a centred odd grid,
-                            then apply them as one kernel.
-                        </p>
-                        {onExpandKernel !== undefined && (
-                            <button
-                                type="button"
-                                onClick={onExpandKernel}
-                            >
-                                Edit custom kernel
-                            </button>
-                        )}
-                    </div>
-                )}
+                <BlurParameterControl
+                    selectedPreset={selectedPreset}
+                    blurRadius={blurRadius}
+                    onBlurRadiusChange={onBlurRadiusChange}
+                    gaussianSigma={gaussianSigma}
+                    onGaussianSigmaChange={onGaussianSigmaChange}
+                    onEditCustomKernel={onExpandKernel}
+                />
                 <p className={styles.pendingParameter}>
                     Active kernel · {kernel.height} × {kernel.width} ·
                     {" "}{kernel.weights.length} weights · sum {formatWeight(kernelSum)} · periodic edge
@@ -1317,93 +1184,6 @@ function KernelSummary({
     );
 }
 
-type RgbaSample = readonly [
-    red: number,
-    green: number,
-    blue: number,
-    alpha: number,
-];
-
-type MicroscopeSample = {
-    coordinate: PixelCoordinate | null;
-    rgba: RgbaSample | null;
-    isCenter: boolean;
-};
-
-function readPixel(
-    buffer: PixelBuffer,
-    coordinate: PixelCoordinate,
-): RgbaSample {
-    const x = Math.min(
-        buffer.width - 1,
-        Math.max(0, coordinate.x),
-    );
-    const y = Math.min(
-        buffer.height - 1,
-        Math.max(0, coordinate.y),
-    );
-    const offset = pixelCoordinateToOffset(
-        buffer,
-        { x, y },
-    );
-
-    return [
-        buffer.data[offset]!,
-        buffer.data[offset + 1]!,
-        buffer.data[offset + 2]!,
-        buffer.data[offset + 3]!,
-    ];
-}
-
-function createMicroscopeSamples(
-    buffer: PixelBuffer | null,
-    center: PixelCoordinate | null,
-): MicroscopeSample[] {
-    return Array.from(
-        { length: MICROSCOPE_SIDE_LENGTH ** 2 },
-        (_, index) => {
-            const localX = index % MICROSCOPE_SIDE_LENGTH;
-            const localY = Math.floor(
-                index / MICROSCOPE_SIDE_LENGTH,
-            );
-            const isCenter =
-                localX === MICROSCOPE_RADIUS &&
-                localY === MICROSCOPE_RADIUS;
-
-            if (buffer === null || center === null) {
-                return {
-                    coordinate: null,
-                    rgba: null,
-                    isCenter,
-                };
-            }
-
-            const coordinate = {
-                x: Math.min(
-                    buffer.width - 1,
-                    Math.max(
-                        0,
-                        center.x + localX - MICROSCOPE_RADIUS,
-                    ),
-                ),
-                y: Math.min(
-                    buffer.height - 1,
-                    Math.max(
-                        0,
-                        center.y + localY - MICROSCOPE_RADIUS,
-                    ),
-                ),
-            };
-
-            return {
-                coordinate,
-                rgba: readPixel(buffer, coordinate),
-                isCenter,
-            };
-        },
-    );
-}
-
 function formatRgba(rgba: RgbaSample | null): string {
     return rgba === null
         ? "—"
@@ -1414,15 +1194,59 @@ function PixelGrid({
     label,
     buffer,
     center,
+    onSelectCoordinate,
 }: {
     label: "Original" | "Result";
     buffer: PixelBuffer | null;
     center: PixelCoordinate | null;
+    onSelectCoordinate: (coordinate: PixelCoordinate) => void;
 }) {
     const samples = useMemo(
         () => createMicroscopeSamples(buffer, center),
         [buffer, center],
     );
+    const gridRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const grid = gridRef.current;
+
+        if (
+            grid === null ||
+            !grid.contains(document.activeElement)
+        ) {
+            return;
+        }
+
+        grid.querySelector<HTMLButtonElement>(
+            '[data-center="true"]',
+        )?.focus();
+    }, [center]);
+
+    const handlePixelKeyDown = (
+        event: KeyboardEvent<HTMLButtonElement>,
+        coordinate: PixelCoordinate | null,
+    ) => {
+        if (coordinate === null) {
+            return;
+        }
+
+        let nextCoordinate: PixelCoordinate;
+
+        if (event.key === "ArrowLeft") {
+            nextCoordinate = { ...coordinate, x: coordinate.x - 1 };
+        } else if (event.key === "ArrowRight") {
+            nextCoordinate = { ...coordinate, x: coordinate.x + 1 };
+        } else if (event.key === "ArrowUp") {
+            nextCoordinate = { ...coordinate, y: coordinate.y - 1 };
+        } else if (event.key === "ArrowDown") {
+            nextCoordinate = { ...coordinate, y: coordinate.y + 1 };
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        onSelectCoordinate(nextCoordinate);
+    };
 
     return (
         <div className={styles.pixelGridGroup}>
@@ -1438,6 +1262,7 @@ function PixelGrid({
                 </span>
             </div>
             <div
+                ref={gridRef}
                 className={styles.pixelGrid}
                 style={{
                     gridTemplateColumns:
@@ -1448,11 +1273,21 @@ function PixelGrid({
                 aria-label={`${label} ${MICROSCOPE_SIDE_LENGTH} by ${MICROSCOPE_SIDE_LENGTH} pixel grid`}
             >
                 {samples.map((sample, index) => (
-                    <span
+                    <button
                         key={index}
+                        type="button"
                         className={styles.pixelCell}
                         data-center={sample.isCenter}
                         data-available={sample.rgba !== null}
+                        disabled={sample.coordinate === null}
+                        tabIndex={sample.isCenter ? 0 : -1}
+                        aria-pressed={sample.isCenter}
+                        aria-label={
+                            sample.coordinate === null ||
+                                sample.rgba === null
+                                ? "Pixel unavailable"
+                                : `${label} pixel x ${sample.coordinate.x}, y ${sample.coordinate.y}, RGBA ${formatRgba(sample.rgba)}`
+                        }
                         style={
                             sample.rgba === null
                                 ? undefined
@@ -1467,6 +1302,17 @@ function PixelGrid({
                                 ? undefined
                                 : `x ${sample.coordinate.x}, y ${sample.coordinate.y} · RGBA ${formatRgba(sample.rgba)}`
                         }
+                        onClick={() => {
+                            if (sample.coordinate !== null) {
+                                onSelectCoordinate(sample.coordinate);
+                            }
+                        }}
+                        onKeyDown={(event) => {
+                            handlePixelKeyDown(
+                                event,
+                                sample.coordinate,
+                            );
+                        }}
                     />
                 ))}
             </div>
@@ -1478,12 +1324,14 @@ function PixelPanel({
     sourceBuffer,
     resultBuffer,
     selectedCoordinate,
+    onSelectedCoordinateChange,
     onExpand,
     presentation = false,
 }: {
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
     selectedCoordinate: PixelCoordinate | null;
+    onSelectedCoordinateChange: (coordinate: PixelCoordinate) => void;
     onExpand?: () => void;
     presentation?: boolean;
 }) {
@@ -1497,6 +1345,15 @@ function PixelPanel({
             selectedCoordinate === null
             ? null
             : readPixel(resultBuffer, selectedCoordinate);
+    const selectCoordinate = (coordinate: PixelCoordinate) => {
+        if (sourceBuffer === null) {
+            return;
+        }
+
+        onSelectedCoordinateChange(
+            clampMicroscopeCenter(coordinate, sourceBuffer),
+        );
+    };
 
     return (
         <section
@@ -1523,11 +1380,13 @@ function PixelPanel({
                         label="Original"
                         buffer={sourceBuffer}
                         center={selectedCoordinate}
+                        onSelectCoordinate={selectCoordinate}
                     />
                     <PixelGrid
                         label="Result"
                         buffer={resultBuffer}
                         center={selectedCoordinate}
+                        onSelectCoordinate={selectCoordinate}
                     />
                 </div>
                 <div className={styles.sampleData}>
@@ -1704,6 +1563,7 @@ function MobileInspector({
     sourceBuffer,
     resultBuffer,
     selectedCoordinate,
+    onSelectedCoordinateChange,
     fourierAnalysis,
     fourierStatus,
     fourierError,
@@ -1723,6 +1583,7 @@ function MobileInspector({
     sourceBuffer: PixelBuffer | null;
     resultBuffer: PixelBuffer | null;
     selectedCoordinate: PixelCoordinate | null;
+    onSelectedCoordinateChange: (coordinate: PixelCoordinate) => void;
     fourierAnalysis: SpectrumAnalysisResult | null;
     fourierStatus: FourierAnalysisStatus;
     fourierError: string | null;
@@ -1771,6 +1632,7 @@ function MobileInspector({
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
                     selectedCoordinate={selectedCoordinate}
+                    onSelectedCoordinateChange={onSelectedCoordinateChange}
                     onExpand={() => onExpandPanel("pixels")}
                 />
             )}
@@ -1869,7 +1731,7 @@ function App() {
 
         return parsed.kernel;
     });
-    const selectedPreset = getPreset(selectedPresetId);
+    const selectedPreset = getBlurPreset(selectedPresetId);
     const selectedKernel = useMemo(
         () => {
             switch (selectedPresetId) {
@@ -2165,6 +2027,7 @@ function App() {
                 sourceBuffer={sourceBuffer}
                 resultBuffer={resultBuffer}
                 selectedCoordinate={selectedCoordinate}
+                onSelectedCoordinateChange={setSelectedCoordinate}
                 presentation
             />
         ) : expandedPanel === "fourier" ? (
@@ -2177,6 +2040,26 @@ function App() {
                 />
             </section>
         ) : null;
+    const presentationBlurControls =
+        expandedPanel === "pixels" ||
+            expandedPanel === "fourier" ? (
+                <PresentationBlurControls
+                    selectedPreset={selectedPreset}
+                    kernel={selectedKernel}
+                    onSelectPreset={selectPreset}
+                    blurRadius={blurRadius}
+                    onBlurRadiusChange={changeBlurRadius}
+                    gaussianSigma={gaussianSigma}
+                    onGaussianSigmaChange={changeGaussianSigma}
+                    onEditCustomKernel={() => {
+                        setExpandedPanel("kernel");
+                    }}
+                    isProcessing={
+                        isProcessing ||
+                        fourierStatus === "analyzing"
+                    }
+                />
+            ) : undefined;
 
     return (
         <div className={styles.app}>
@@ -2230,6 +2113,7 @@ function App() {
                         sourceBuffer={sourceBuffer}
                         resultBuffer={resultBuffer}
                         selectedCoordinate={selectedCoordinate}
+                        onSelectedCoordinateChange={setSelectedCoordinate}
                         onExpand={() => setExpandedPanel("pixels")}
                     />
                 </div>
@@ -2250,6 +2134,7 @@ function App() {
                     sourceBuffer={sourceBuffer}
                     resultBuffer={resultBuffer}
                     selectedCoordinate={selectedCoordinate}
+                    onSelectedCoordinateChange={setSelectedCoordinate}
                     fourierAnalysis={fourierAnalysis}
                     fourierStatus={fourierStatus}
                     fourierError={fourierError}
@@ -2272,6 +2157,7 @@ function App() {
                 <FullscreenPanel
                     panel={expandedPanel}
                     title={expandedPanelTitles[expandedPanel]}
+                    controls={presentationBlurControls}
                     onClose={() => setExpandedPanel(null)}
                 >
                     {expandedContent}
